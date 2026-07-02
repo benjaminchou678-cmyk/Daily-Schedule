@@ -119,11 +119,11 @@
       overflow: hidden;
     }
 
-    .form-panel, .history-panel {
+    .quote-panel, .history-panel {
       padding: 18px;
     }
 
-    .form-panel h2, .history-panel h2, .list-panel h2, .timeline-panel h2 {
+    .quote-panel h2, .history-panel h2, .list-panel h2, .timeline-panel h2 {
       margin: 0;
       font-size: 18px;
     }
@@ -161,12 +161,6 @@
       grid-template-columns: 1fr 104px;
       gap: 10px;
       align-items: end;
-    }
-
-    .duration-help {
-      margin: 7px 0 0;
-      color: var(--muted);
-      font-size: 12px;
     }
 
     .primary, .secondary, .danger-btn {
@@ -436,10 +430,37 @@
     .resize-top { top: 0; }
     .resize-bottom { bottom: 0; }
 
-    .now-hint {
-      margin: 10px 0 0;
+    .quote-card {
+      margin-top: 14px;
+      padding: 18px;
+      border: 1px solid rgba(79, 159, 215, 0.2);
+      border-radius: 8px;
+      background:
+        linear-gradient(135deg, rgba(159, 215, 255, 0.28), rgba(255, 193, 216, 0.24)),
+        #ffffff;
+      box-shadow: var(--soft-shadow);
+    }
+
+    .quote-text {
+      margin: 0;
+      color: var(--ink);
+      font-size: 17px;
+      font-weight: 800;
+      line-height: 1.55;
+    }
+
+    .quote-source {
+      margin: 12px 0 0;
       color: var(--muted);
       font-size: 13px;
+      text-align: right;
+    }
+
+    .quote-date {
+      margin: 12px 0 0;
+      color: var(--blue-ink);
+      font-size: 12px;
+      font-weight: 700;
     }
 
     .history-controls {
@@ -643,29 +664,14 @@
 
     <section class="layout">
       <div class="left-stack">
-        <form class="panel form-panel" id="scheduleForm">
-          <h2>新增日程</h2>
-          <label for="dateInput">日期</label>
-          <input id="dateInput" name="dateInput" type="date">
-
-          <label for="time">开始时间</label>
-          <input id="time" name="time" type="time" min="06:00" max="23:45" step="900">
-
-          <label for="duration">时长</label>
-          <div class="duration-row">
-            <input id="duration" name="duration" type="range" min="15" max="240" step="15" value="60">
-            <input id="durationText" name="durationText" type="text" value="1h" aria-label="时长">
+        <section class="panel quote-panel">
+          <h2>每日一句</h2>
+          <div class="quote-card">
+            <p class="quote-text" id="dailyQuoteText"></p>
+            <p class="quote-source" id="dailyQuoteSource"></p>
+            <p class="quote-date" id="dailyQuoteDate"></p>
           </div>
-          <p class="duration-help">可输入 105 或 1h45min，都会识别为 1h45min。</p>
-
-          <label for="title">事项</label>
-          <input id="title" name="title" type="text" placeholder="例如：整理周报" maxlength="60" required>
-
-          <label for="note">备注</label>
-          <textarea id="note" name="note" placeholder="可选：地点、材料或提醒"></textarea>
-
-          <button class="primary" type="submit">添加到所选日期</button>
-        </form>
+        </section>
 
         <section class="panel history-panel">
           <h2>历史日历</h2>
@@ -710,7 +716,6 @@
               <div class="timeline-click-layer" id="timelineClickLayer" aria-label="点击创建日程"></div>
               <div class="event-layer" id="eventLayer"></div>
             </div>
-            <p class="now-hint">时间范围 06:00-24:00，拖拽时按 15 分钟吸附。时长显示为 1h45min 这类格式。</p>
           </div>
         </section>
       </div>
@@ -734,7 +739,6 @@
         <input id="modalDuration" type="range" min="15" max="240" step="15" value="60">
         <input id="modalDurationText" type="text" value="1h" aria-label="弹窗时长">
       </div>
-      <p class="duration-help">例如：105 = 1h45min。</p>
 
       <label for="modalTaskTitle">事项</label>
       <input id="modalTaskTitle" type="text" placeholder="例如：复盘今天的工作" maxlength="60" required>
@@ -758,17 +762,28 @@
     const DEFAULT_DURATION = 60;
     const STORAGE_PREFIX = "daily-schedule:";
     const monthNames = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+    const dailyQuotes = [
+      { text: "生活就像一盒巧克力，你永远不知道下一颗是什么味道。", source: "《阿甘正传》" },
+      { text: "去做吧。事情做了，答案自然会出现。", source: "每日提醒" },
+      { text: "希望是美好的，也许是人间至善，而美好的事物永不消逝。", source: "《肖申克的救赎》" },
+      { text: "把今天安排好，就是给明天留出一点光。", source: "每日提醒" },
+      { text: "不是每一天都很好，但每一天里都有一些好的东西。", source: "每日提醒" },
+      { text: "伟大的愿望不是靠冲动完成的，而是靠一次次准时开始。", source: "每日提醒" },
+      { text: "所有大人都曾经是孩子，只是少数人记得。", source: "《小王子》" },
+      { text: "慢一点也没关系，只要你还在往前。", source: "每日提醒" },
+      { text: "你不能放弃这个世界，因为你还有地方要去。", source: "《海上钢琴师》" },
+      { text: "今天先完成一件小事，世界就会清楚一点。", source: "每日提醒" }
+    ];
 
-    const form = document.querySelector("#scheduleForm");
-    const dateInput = document.querySelector("#dateInput");
     const list = document.querySelector("#taskList");
     const selectedDateText = document.querySelector("#selectedDateText");
+    const dailyQuoteText = document.querySelector("#dailyQuoteText");
+    const dailyQuoteSource = document.querySelector("#dailyQuoteSource");
+    const dailyQuoteDate = document.querySelector("#dailyQuoteDate");
     const statusText = document.querySelector("#statusText");
     const totalCount = document.querySelector("#totalCount");
     const openCount = document.querySelector("#openCount");
     const doneCount = document.querySelector("#doneCount");
-    const duration = document.querySelector("#duration");
-    const durationText = document.querySelector("#durationText");
     const hourRows = document.querySelector("#hourRows");
     const timelineClickLayer = document.querySelector("#timelineClickLayer");
     const eventLayer = document.querySelector("#eventLayer");
@@ -801,11 +816,9 @@
     let tasks = migrateTasks(loadTasks(selectedDateKey));
     let activePointer = null;
 
-    dateInput.value = selectedDateKey;
     monthPicker.value = selectedDateKey.slice(0, 7);
     yearPicker.value = selectedDateKey.slice(0, 4);
 
-    bindDuration(duration, durationText);
     bindDuration(modalDuration, modalDurationText);
     renderHours();
     saveTasks();
@@ -936,7 +949,7 @@
         textInput.value = formatDuration(Number(range.value));
       });
       textInput.addEventListener("change", () => {
-        const start = parseTime(textInput.id === "modalDurationText" ? modalTime.value : document.querySelector("#time").value) ?? 9 * 60;
+        const start = parseTime(modalTime.value) ?? 9 * 60;
         const clean = clampDuration(parseDuration(textInput.value), start);
         range.value = clean;
         textInput.value = formatDuration(clean);
@@ -946,7 +959,6 @@
     function switchDate(dateKey) {
       selectedDateKey = dateKey;
       tasks = migrateTasks(loadTasks(selectedDateKey));
-      dateInput.value = selectedDateKey;
       monthPicker.value = selectedDateKey.slice(0, 7);
       yearPicker.value = selectedDateKey.slice(0, 4);
       saveTasks();
@@ -970,6 +982,7 @@
 
     function render() {
       renderDateText();
+      renderDailyQuote();
       renderStats();
       renderList();
       renderTimeline();
@@ -981,6 +994,14 @@
       const weekday = new Intl.DateTimeFormat("zh-CN", { weekday: "long" }).format(date);
       const todayKey = new Date().toLocaleDateString("sv-SE");
       selectedDateText.textContent = `${selectedDateKey} ${weekday}${selectedDateKey === todayKey ? " · 今天" : ""}`;
+    }
+
+    function renderDailyQuote() {
+      const index = [...selectedDateKey].reduce((sum, char) => sum + char.charCodeAt(0), 0) % dailyQuotes.length;
+      const quote = dailyQuotes[index];
+      dailyQuoteText.textContent = `“${quote.text}”`;
+      dailyQuoteSource.textContent = quote.source;
+      dailyQuoteDate.textContent = selectedDateKey;
     }
 
     function renderStats() {
@@ -1180,37 +1201,6 @@
         createdAt: Date.now()
       };
     }
-
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const data = new FormData(form);
-      const targetDate = String(data.get("dateInput") || selectedDateKey);
-      if (targetDate !== selectedDateKey) switchDate(targetDate);
-
-      const title = String(data.get("title")).trim();
-      if (!title) return;
-
-      const start = String(data.get("time")).trim() || "09:00";
-      const taskDuration = clampDuration(parseDuration(durationText.value), parseTime(start) ?? 9 * 60);
-      tasks.push(createTaskFromValues({
-        title,
-        note: String(data.get("note")).trim(),
-        time: start,
-        duration: taskDuration
-      }));
-
-      saveTasks();
-      form.reset();
-      dateInput.value = selectedDateKey;
-      duration.value = DEFAULT_DURATION;
-      durationText.value = formatDuration(DEFAULT_DURATION);
-      document.querySelector("#title").focus();
-      render();
-    });
-
-    dateInput.addEventListener("change", () => {
-      if (dateInput.value) switchDate(dateInput.value);
-    });
 
     monthPicker.addEventListener("change", () => {
       if (!monthPicker.value) return;
