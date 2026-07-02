@@ -1,0 +1,17 @@
+{
+  "name": "daily-schedule",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "check": "node scripts/check.mjs"
+  },
+  "keywords": [
+    "schedule",
+    "calendar",
+    "localstorage",
+    "vanilla-js"
+  ],
+  "license": "MIT"
+}

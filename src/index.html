@@ -1,0 +1,1386 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>个人日程表</title>
+  <link rel="icon" type="image/png" href="/public/icon/icon.png">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #fbf8fb;
+      --panel: #ffffff;
+      --ink: #26303a;
+      --muted: #73808c;
+      --line: #e6eaf0;
+      --line-soft: #f0f3f7;
+      --blue: #9fd7ff;
+      --blue-deep: #4f9fd7;
+      --blue-ink: #174c72;
+      --pink: #ffc1d8;
+      --pink-deep: #e27aa4;
+      --pink-ink: #7d2e52;
+      --done: #b9c2ce;
+      --danger: #c95f75;
+      --shadow: 0 14px 40px rgba(38, 48, 58, 0.1);
+      --soft-shadow: 0 10px 24px rgba(38, 48, 58, 0.08);
+      --hour-height: 72px;
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(159, 215, 255, 0.28), transparent 32%),
+        linear-gradient(315deg, rgba(255, 193, 216, 0.28), transparent 34%),
+        var(--bg);
+      color: var(--ink);
+    }
+
+    button, input, textarea { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+
+    .app {
+      width: min(1220px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 34px 0;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 4vw, 44px);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .date {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .summary {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .pill {
+      min-width: 86px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.82);
+      text-align: center;
+      box-shadow: 0 8px 20px rgba(38, 48, 58, 0.06);
+    }
+
+    .pill strong {
+      display: block;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .pill span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 330px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .left-stack, .right-stack {
+      display: grid;
+      gap: 18px;
+      min-width: 0;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .form-panel, .history-panel {
+      padding: 18px;
+    }
+
+    .form-panel h2, .history-panel h2, .list-panel h2, .timeline-panel h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    label {
+      display: block;
+      margin: 14px 0 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fcfdff;
+      color: var(--ink);
+      outline: none;
+      padding: 11px 12px;
+      transition: border-color 0.18s, box-shadow 0.18s;
+    }
+
+    textarea {
+      min-height: 92px;
+      resize: vertical;
+    }
+
+    input:focus, textarea:focus {
+      border-color: var(--blue-deep);
+      box-shadow: 0 0 0 3px rgba(159, 215, 255, 0.45);
+    }
+
+    .duration-row {
+      display: grid;
+      grid-template-columns: 1fr 104px;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .duration-help {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .primary, .secondary, .danger-btn {
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+      padding: 11px 14px;
+      transition: background 0.18s, color 0.18s, transform 0.18s, border-color 0.18s;
+    }
+
+    .primary {
+      width: 100%;
+      margin-top: 16px;
+      background: linear-gradient(135deg, var(--blue-deep), #78bff0);
+      color: #ffffff;
+    }
+
+    .primary:hover { background: linear-gradient(135deg, #3e91c9, #64b2e8); }
+
+    .secondary {
+      border: 1px solid var(--line);
+      background: #ffffff;
+      color: var(--ink);
+    }
+
+    .secondary:hover {
+      border-color: var(--blue-deep);
+      color: var(--blue-ink);
+    }
+
+    .danger-btn {
+      background: rgba(201, 95, 117, 0.1);
+      color: var(--danger);
+    }
+
+    .danger-btn:hover { background: rgba(201, 95, 117, 0.16); }
+    .primary:active, .secondary:active, .danger-btn:active { transform: translateY(1px); }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 18px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: right;
+    }
+
+    .tasks {
+      display: grid;
+      gap: 0;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+      max-height: 330px;
+      overflow: auto;
+    }
+
+    .task {
+      display: grid;
+      grid-template-columns: 24px 1fr auto;
+      gap: 12px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      align-items: start;
+      border-left: 5px solid transparent;
+    }
+
+    .task:last-child { border-bottom: 0; }
+    .task.blue { border-left-color: var(--blue-deep); background: linear-gradient(90deg, rgba(159, 215, 255, 0.18), transparent 42%); }
+    .task.pink { border-left-color: var(--pink-deep); background: linear-gradient(90deg, rgba(255, 193, 216, 0.22), transparent 42%); }
+
+    .checkbox {
+      width: 22px;
+      height: 22px;
+      margin-top: 2px;
+      border: 2px solid var(--blue-deep);
+      border-radius: 6px;
+      background: #ffffff;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      color: #ffffff;
+      font-size: 15px;
+      line-height: 1;
+    }
+
+    .task.pink .checkbox { border-color: var(--pink-deep); }
+    .task.done .checkbox { background: var(--done); border-color: var(--done); }
+
+    .time {
+      display: inline-block;
+      margin-bottom: 5px;
+      color: var(--blue-ink);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .task.pink .time { color: var(--pink-ink); }
+
+    .title {
+      margin: 0;
+      font-weight: 700;
+      line-height: 1.38;
+      overflow-wrap: anywhere;
+    }
+
+    .note {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    .task.done .title, .task.done .note, .task.done .time {
+      color: #8b939d;
+      text-decoration: line-through;
+      text-decoration-thickness: 1px;
+    }
+
+    .task-actions { display: flex; gap: 6px; }
+
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .edit { color: var(--blue-ink); }
+    .delete { color: var(--danger); font-size: 20px; }
+    .icon-btn:hover { border-color: rgba(79, 159, 215, 0.22); background: rgba(159, 215, 255, 0.16); }
+    .delete:hover { border-color: rgba(201, 95, 117, 0.24); background: rgba(255, 193, 216, 0.24); }
+
+    .empty {
+      padding: 42px 18px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .empty strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--ink);
+      font-size: 18px;
+    }
+
+    .timeline-wrap { padding: 16px 18px 18px; }
+
+    .timeline-shell {
+      position: relative;
+      min-height: calc(18 * var(--hour-height));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fcfdff;
+      overflow: hidden;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+    }
+
+    .hour-row {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: var(--hour-height);
+      border-top: 1px solid var(--line-soft);
+      display: grid;
+      grid-template-columns: 68px 1fr;
+      pointer-events: none;
+    }
+
+    .hour-row:first-child { border-top: 0; }
+
+    .hour-label {
+      color: var(--muted);
+      font-size: 12px;
+      padding: 8px 10px 0 0;
+      text-align: right;
+      border-right: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.64);
+    }
+
+    .hour-area {
+      background:
+        linear-gradient(to bottom, transparent calc(50% - 0.5px), rgba(230, 234, 240, 0.74) calc(50% - 0.5px), rgba(230, 234, 240, 0.74) calc(50% + 0.5px), transparent calc(50% + 0.5px));
+    }
+
+    .timeline-click-layer, .event-layer {
+      position: absolute;
+      inset: 0 0 0 68px;
+    }
+
+    .timeline-click-layer { cursor: crosshair; }
+    .event-layer { pointer-events: none; }
+
+    .event-block {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      min-height: 38px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      color: #1d3648;
+      box-shadow: var(--soft-shadow);
+      cursor: grab;
+      overflow: hidden;
+      pointer-events: auto;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .event-block:active { cursor: grabbing; }
+    .event-block.blue { background: linear-gradient(135deg, #cdeeff, var(--blue)); border: 1px solid rgba(79, 159, 215, 0.28); }
+    .event-block.pink { background: linear-gradient(135deg, #ffe0eb, var(--pink)); border: 1px solid rgba(226, 122, 164, 0.28); color: #603149; }
+    .event-block.done {
+      background: linear-gradient(135deg, #edf0f4, #cfd6df) !important;
+      color: rgba(38, 48, 58, 0.72);
+      border-color: rgba(115, 128, 140, 0.2);
+      box-shadow: 0 8px 18px rgba(38, 48, 58, 0.1);
+    }
+
+    .event-block.done .event-title, .event-block.done .event-note, .event-block.done .event-time {
+      text-decoration: line-through;
+      text-decoration-thickness: 1px;
+    }
+
+    .event-title {
+      display: block;
+      font-weight: 800;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .event-time, .event-note {
+      display: block;
+      margin-top: 3px;
+      font-size: 12px;
+      line-height: 1.25;
+      opacity: 0.88;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .resize-handle {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 10px;
+      cursor: ns-resize;
+    }
+
+    .resize-top { top: 0; }
+    .resize-bottom { bottom: 0; }
+
+    .now-hint {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .history-controls {
+      display: grid;
+      grid-template-columns: 1fr 86px;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .history-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .mini-stat {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 8px;
+      background: #fcfdff;
+      text-align: center;
+    }
+
+    .mini-stat strong {
+      display: block;
+      font-size: 18px;
+    }
+
+    .mini-stat span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .calendar {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+    }
+
+    .weekday, .day-cell {
+      min-height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .weekday {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .day-cell {
+      border: 1px solid var(--line);
+      background: #ffffff;
+      cursor: pointer;
+      position: relative;
+      color: var(--ink);
+    }
+
+    .day-cell.muted {
+      color: #b3bbc4;
+      background: #f7f9fb;
+    }
+
+    .day-cell.has-data {
+      background: linear-gradient(135deg, rgba(159, 215, 255, 0.35), rgba(255, 193, 216, 0.34));
+      border-color: rgba(79, 159, 215, 0.26);
+      font-weight: 800;
+    }
+
+    .day-cell.selected {
+      outline: 2px solid var(--blue-deep);
+      outline-offset: 1px;
+    }
+
+    .day-cell .count {
+      position: absolute;
+      right: 4px;
+      bottom: 3px;
+      font-size: 10px;
+      color: var(--pink-ink);
+    }
+
+    .year-bars {
+      display: grid;
+      gap: 7px;
+      margin-top: 14px;
+    }
+
+    .year-row {
+      display: grid;
+      grid-template-columns: 28px 1fr 32px;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .bar {
+      height: 9px;
+      border-radius: 999px;
+      background: #eef2f6;
+      overflow: hidden;
+    }
+
+    .bar span {
+      display: block;
+      height: 100%;
+      min-width: 0;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--blue), var(--pink));
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: 18px;
+      background: rgba(38, 48, 58, 0.24);
+      z-index: 20;
+    }
+
+    .modal-backdrop.open { display: grid; }
+
+    .modal {
+      width: min(460px, 100%);
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 24px 70px rgba(38, 48, 58, 0.24);
+      padding: 18px;
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+
+    .modal-head h2 { margin: 0; font-size: 18px; }
+
+    .close-btn {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .close-btn:hover { color: var(--ink); border-color: var(--blue-deep); }
+
+    .modal-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .modal-actions.with-delete { grid-template-columns: 1fr 1fr 1fr; }
+
+    @media (max-width: 900px) {
+      .app {
+        width: min(100% - 22px, 1220px);
+        padding: 24px 0;
+      }
+
+      .topbar, .layout { display: block; }
+      .summary { justify-content: flex-start; margin-top: 16px; }
+      .left-stack { margin-bottom: 16px; }
+      .right-stack { gap: 16px; }
+      .section-head { align-items: flex-start; }
+      .task { grid-template-columns: 24px 1fr 74px; padding: 15px 14px; }
+      .timeline-wrap { padding: 14px; overflow-x: auto; }
+      .timeline-shell { min-width: 620px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <h1>个人日程表</h1>
+        <p class="date" id="selectedDateText"></p>
+      </div>
+      <div class="summary" aria-label="日程统计">
+        <div class="pill"><strong id="totalCount">0</strong><span>全部</span></div>
+        <div class="pill"><strong id="openCount">0</strong><span>待完成</span></div>
+        <div class="pill"><strong id="doneCount">0</strong><span>已完成</span></div>
+      </div>
+    </header>
+
+    <section class="layout">
+      <div class="left-stack">
+        <form class="panel form-panel" id="scheduleForm">
+          <h2>新增日程</h2>
+          <label for="dateInput">日期</label>
+          <input id="dateInput" name="dateInput" type="date">
+
+          <label for="time">开始时间</label>
+          <input id="time" name="time" type="time" min="06:00" max="23:45" step="900">
+
+          <label for="duration">时长</label>
+          <div class="duration-row">
+            <input id="duration" name="duration" type="range" min="15" max="240" step="15" value="60">
+            <input id="durationText" name="durationText" type="text" value="1h" aria-label="时长">
+          </div>
+          <p class="duration-help">可输入 105 或 1h45min，都会识别为 1h45min。</p>
+
+          <label for="title">事项</label>
+          <input id="title" name="title" type="text" placeholder="例如：整理周报" maxlength="60" required>
+
+          <label for="note">备注</label>
+          <textarea id="note" name="note" placeholder="可选：地点、材料或提醒"></textarea>
+
+          <button class="primary" type="submit">添加到所选日期</button>
+        </form>
+
+        <section class="panel history-panel">
+          <h2>历史日历</h2>
+          <div class="history-controls">
+            <input id="monthPicker" type="month" aria-label="选择月份">
+            <button class="secondary" id="todayButton" type="button">今天</button>
+          </div>
+          <div class="history-stats">
+            <div class="mini-stat"><strong id="monthTotal">0</strong><span>本月事项</span></div>
+            <div class="mini-stat"><strong id="monthDone">0</strong><span>本月完成</span></div>
+            <div class="mini-stat"><strong id="monthDuration">0min</strong><span>本月时长</span></div>
+          </div>
+          <div class="calendar" id="calendarGrid"></div>
+          <label for="yearPicker">年度汇总</label>
+          <input id="yearPicker" type="number" min="2000" max="2100" step="1">
+          <div class="history-stats">
+            <div class="mini-stat"><strong id="yearTotal">0</strong><span>全年事项</span></div>
+            <div class="mini-stat"><strong id="yearDone">0</strong><span>全年完成</span></div>
+            <div class="mini-stat"><strong id="yearDuration">0min</strong><span>全年时长</span></div>
+          </div>
+          <div class="year-bars" id="yearBars"></div>
+        </section>
+      </div>
+
+      <div class="right-stack">
+        <section class="panel list-panel" aria-live="polite">
+          <div class="section-head">
+            <h2>所选日期日程</h2>
+            <p id="statusText">还没有日程</p>
+          </div>
+          <ul class="tasks" id="taskList"></ul>
+        </section>
+
+        <section class="panel timeline-panel">
+          <div class="section-head">
+            <h2>全天时间线</h2>
+            <p>点击空白处创建，拖动色块调整时间</p>
+          </div>
+          <div class="timeline-wrap">
+            <div class="timeline-shell" id="timeline">
+              <div id="hourRows"></div>
+              <div class="timeline-click-layer" id="timelineClickLayer" aria-label="点击创建日程"></div>
+              <div class="event-layer" id="eventLayer"></div>
+            </div>
+            <p class="now-hint">时间范围 06:00-24:00，拖拽时按 15 分钟吸附。时长显示为 1h45min 这类格式。</p>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <form class="modal" id="taskModalForm">
+      <div class="modal-head">
+        <h2 id="modalTitle">新增日程</h2>
+        <button class="close-btn" id="closeModal" type="button" aria-label="关闭">×</button>
+      </div>
+
+      <input id="modalTaskId" type="hidden">
+
+      <label for="modalTime">开始时间</label>
+      <input id="modalTime" type="time" min="06:00" max="23:45" step="900" required>
+
+      <label for="modalDuration">时长</label>
+      <div class="duration-row">
+        <input id="modalDuration" type="range" min="15" max="240" step="15" value="60">
+        <input id="modalDurationText" type="text" value="1h" aria-label="弹窗时长">
+      </div>
+      <p class="duration-help">例如：105 = 1h45min。</p>
+
+      <label for="modalTaskTitle">事项</label>
+      <input id="modalTaskTitle" type="text" placeholder="例如：复盘今天的工作" maxlength="60" required>
+
+      <label for="modalNote">备注</label>
+      <textarea id="modalNote" placeholder="可选：地点、材料或提醒"></textarea>
+
+      <div class="modal-actions" id="modalActions">
+        <button class="secondary" id="modalDoneToggle" type="button">标记完成</button>
+        <button class="primary" type="submit">保存</button>
+        <button class="danger-btn" id="modalDelete" type="button">删除</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    const DAY_START = 6 * 60;
+    const DAY_END = 24 * 60;
+    const HOUR_HEIGHT = 72;
+    const SNAP_MINUTES = 15;
+    const DEFAULT_DURATION = 60;
+    const STORAGE_PREFIX = "daily-schedule:";
+    const monthNames = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+
+    const form = document.querySelector("#scheduleForm");
+    const dateInput = document.querySelector("#dateInput");
+    const list = document.querySelector("#taskList");
+    const selectedDateText = document.querySelector("#selectedDateText");
+    const statusText = document.querySelector("#statusText");
+    const totalCount = document.querySelector("#totalCount");
+    const openCount = document.querySelector("#openCount");
+    const doneCount = document.querySelector("#doneCount");
+    const duration = document.querySelector("#duration");
+    const durationText = document.querySelector("#durationText");
+    const hourRows = document.querySelector("#hourRows");
+    const timelineClickLayer = document.querySelector("#timelineClickLayer");
+    const eventLayer = document.querySelector("#eventLayer");
+    const monthPicker = document.querySelector("#monthPicker");
+    const yearPicker = document.querySelector("#yearPicker");
+    const calendarGrid = document.querySelector("#calendarGrid");
+    const todayButton = document.querySelector("#todayButton");
+    const monthTotal = document.querySelector("#monthTotal");
+    const monthDone = document.querySelector("#monthDone");
+    const monthDuration = document.querySelector("#monthDuration");
+    const yearTotal = document.querySelector("#yearTotal");
+    const yearDone = document.querySelector("#yearDone");
+    const yearDuration = document.querySelector("#yearDuration");
+    const yearBars = document.querySelector("#yearBars");
+    const modalBackdrop = document.querySelector("#modalBackdrop");
+    const modalForm = document.querySelector("#taskModalForm");
+    const modalTitle = document.querySelector("#modalTitle");
+    const modalActions = document.querySelector("#modalActions");
+    const modalTaskId = document.querySelector("#modalTaskId");
+    const modalTime = document.querySelector("#modalTime");
+    const modalDuration = document.querySelector("#modalDuration");
+    const modalDurationText = document.querySelector("#modalDurationText");
+    const modalTaskTitle = document.querySelector("#modalTaskTitle");
+    const modalNote = document.querySelector("#modalNote");
+    const modalDoneToggle = document.querySelector("#modalDoneToggle");
+    const modalDelete = document.querySelector("#modalDelete");
+    const closeModal = document.querySelector("#closeModal");
+
+    let selectedDateKey = new Date().toLocaleDateString("sv-SE");
+    let tasks = migrateTasks(loadTasks(selectedDateKey));
+    let activePointer = null;
+
+    dateInput.value = selectedDateKey;
+    monthPicker.value = selectedDateKey.slice(0, 7);
+    yearPicker.value = selectedDateKey.slice(0, 4);
+
+    bindDuration(duration, durationText);
+    bindDuration(modalDuration, modalDurationText);
+    renderHours();
+    saveTasks();
+    render();
+
+    function keyFor(dateKey) {
+      return `${STORAGE_PREFIX}${dateKey}`;
+    }
+
+    function loadTasks(dateKey) {
+      try {
+        return JSON.parse(localStorage.getItem(keyFor(dateKey))) || [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveTasks() {
+      localStorage.setItem(keyFor(selectedDateKey), JSON.stringify(tasks));
+    }
+
+    function getAllDailyData() {
+      const data = {};
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (!key || !key.startsWith(STORAGE_PREFIX)) continue;
+        const dateKey = key.slice(STORAGE_PREFIX.length);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
+        data[dateKey] = migrateTasks(loadTasks(dateKey));
+      }
+      return data;
+    }
+
+    function migrateTasks(items) {
+      return items.map((task, index) => {
+        const start = clampMinutes(parseTime(task.time) ?? task.start ?? (9 * 60 + index * 60));
+        const taskDuration = clampDuration(Number(task.duration) || DEFAULT_DURATION, start);
+        return {
+          id: task.id || createId(),
+          title: task.title || "未命名日程",
+          note: task.note || "",
+          time: formatTime(start),
+          start,
+          duration: taskDuration,
+          done: Boolean(task.done),
+          createdAt: task.createdAt || Date.now()
+        };
+      });
+    }
+
+    function createId() {
+      return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function parseTime(value) {
+      if (!value) return null;
+      const match = String(value).match(/^(\d{1,2}):(\d{2})$/);
+      if (!match) return null;
+      return Number(match[1]) * 60 + Number(match[2]);
+    }
+
+    function formatTime(minutes) {
+      const safe = Math.max(0, Math.min(DAY_END, Math.round(minutes)));
+      const hour = Math.floor(safe / 60);
+      const minute = safe % 60;
+      return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    }
+
+    function formatDuration(minutes) {
+      const safe = Math.max(0, Math.round(minutes));
+      const hour = Math.floor(safe / 60);
+      const minute = safe % 60;
+      if (hour && minute) return `${hour}h${minute}min`;
+      if (hour) return `${hour}h`;
+      return `${minute}min`;
+    }
+
+    function parseDuration(value) {
+      const raw = String(value || "").trim().toLowerCase().replace(/\s+/g, "");
+      if (!raw) return DEFAULT_DURATION;
+      if (/^\d+$/.test(raw)) return Number(raw);
+      const hour = raw.match(/(\d+(?:\.\d+)?)h/);
+      const minute = raw.match(/(\d+)m(?:in)?/);
+      let total = 0;
+      if (hour) total += Number(hour[1]) * 60;
+      if (minute) total += Number(minute[1]);
+      return total || DEFAULT_DURATION;
+    }
+
+    function formatRange(task) {
+      return `${formatTime(task.start)}-${formatTime(task.start + task.duration)} · ${formatDuration(task.duration)}`;
+    }
+
+    function snap(minutes) {
+      return Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
+    }
+
+    function clampMinutes(minutes) {
+      return Math.max(DAY_START, Math.min(DAY_END - SNAP_MINUTES, snap(minutes)));
+    }
+
+    function clampDuration(minutes, start) {
+      const value = Math.max(SNAP_MINUTES, Math.min(240, snap(minutes)));
+      return Math.min(value, DAY_END - start);
+    }
+
+    function minuteToTop(minutes) {
+      return ((minutes - DAY_START) / 60) * HOUR_HEIGHT;
+    }
+
+    function yToMinutes(y) {
+      return clampMinutes(DAY_START + (y / HOUR_HEIGHT) * 60);
+    }
+
+    function sortTasks(items) {
+      return [...items].sort((a, b) => {
+        if (a.done !== b.done) return Number(a.done) - Number(b.done);
+        return a.start - b.start;
+      });
+    }
+
+    function colorClass(index) {
+      return index % 2 === 0 ? "blue" : "pink";
+    }
+
+    function bindDuration(range, textInput) {
+      range.addEventListener("input", () => {
+        textInput.value = formatDuration(Number(range.value));
+      });
+      textInput.addEventListener("change", () => {
+        const start = parseTime(textInput.id === "modalDurationText" ? modalTime.value : document.querySelector("#time").value) ?? 9 * 60;
+        const clean = clampDuration(parseDuration(textInput.value), start);
+        range.value = clean;
+        textInput.value = formatDuration(clean);
+      });
+    }
+
+    function switchDate(dateKey) {
+      selectedDateKey = dateKey;
+      tasks = migrateTasks(loadTasks(selectedDateKey));
+      dateInput.value = selectedDateKey;
+      monthPicker.value = selectedDateKey.slice(0, 7);
+      yearPicker.value = selectedDateKey.slice(0, 4);
+      saveTasks();
+      closeTaskModal();
+      render();
+    }
+
+    function renderHours() {
+      hourRows.innerHTML = "";
+      for (let hour = 6; hour < 24; hour += 1) {
+        const row = document.createElement("div");
+        row.className = "hour-row";
+        row.style.top = `${(hour - 6) * HOUR_HEIGHT}px`;
+        row.innerHTML = `
+          <div class="hour-label">${String(hour).padStart(2, "0")}:00</div>
+          <div class="hour-area"></div>
+        `;
+        hourRows.append(row);
+      }
+    }
+
+    function render() {
+      renderDateText();
+      renderStats();
+      renderList();
+      renderTimeline();
+      renderHistory();
+    }
+
+    function renderDateText() {
+      const date = new Date(`${selectedDateKey}T00:00:00`);
+      const weekday = new Intl.DateTimeFormat("zh-CN", { weekday: "long" }).format(date);
+      const todayKey = new Date().toLocaleDateString("sv-SE");
+      selectedDateText.textContent = `${selectedDateKey} ${weekday}${selectedDateKey === todayKey ? " · 今天" : ""}`;
+    }
+
+    function renderStats() {
+      const done = tasks.filter((task) => task.done).length;
+      const open = tasks.length - done;
+      const minutes = tasks.reduce((sum, task) => sum + task.duration, 0);
+      totalCount.textContent = tasks.length;
+      openCount.textContent = open;
+      doneCount.textContent = done;
+      statusText.textContent = tasks.length ? `${open} 个待完成，${done} 个已完成，共 ${formatDuration(minutes)}` : "还没有日程";
+    }
+
+    function renderList() {
+      const sortedTasks = sortTasks(tasks);
+      if (!tasks.length) {
+        list.innerHTML = `
+          <li class="empty">
+            <strong>这一天还很清爽</strong>
+            添加第一条日程，让这一天有个稳稳的安排。
+          </li>
+        `;
+        return;
+      }
+
+      list.innerHTML = "";
+      sortedTasks.forEach((task, index) => {
+        const item = document.createElement("li");
+        item.className = `task ${colorClass(index)}${task.done ? " done" : ""}`;
+        item.dataset.id = task.id;
+
+        const checkbox = document.createElement("button");
+        checkbox.className = "checkbox";
+        checkbox.type = "button";
+        checkbox.setAttribute("aria-label", task.done ? "标记为未完成" : "标记为完成");
+        checkbox.textContent = task.done ? "✓" : "";
+        checkbox.addEventListener("click", () => toggleTask(task.id));
+
+        const content = document.createElement("div");
+        const time = document.createElement("span");
+        time.className = "time";
+        time.textContent = formatRange(task);
+
+        const title = document.createElement("p");
+        title.className = "title";
+        title.textContent = task.title;
+        content.append(time, title);
+
+        if (task.note) {
+          const note = document.createElement("p");
+          note.className = "note";
+          note.textContent = task.note;
+          content.append(note);
+        }
+
+        const actions = document.createElement("div");
+        actions.className = "task-actions";
+
+        const edit = document.createElement("button");
+        edit.className = "icon-btn edit";
+        edit.type = "button";
+        edit.setAttribute("aria-label", "编辑日程");
+        edit.textContent = "✎";
+        edit.addEventListener("click", () => openModal(task));
+
+        const remove = document.createElement("button");
+        remove.className = "icon-btn delete";
+        remove.type = "button";
+        remove.setAttribute("aria-label", "删除日程");
+        remove.textContent = "×";
+        remove.addEventListener("click", () => deleteTask(task.id));
+
+        actions.append(edit, remove);
+        item.append(checkbox, content, actions);
+        list.append(item);
+      });
+    }
+
+    function renderTimeline() {
+      eventLayer.innerHTML = "";
+      sortTasks(tasks).forEach((task, index) => {
+        const block = document.createElement("div");
+        block.className = `event-block ${colorClass(index)}${task.done ? " done" : ""}`;
+        block.dataset.id = task.id;
+        block.style.top = `${minuteToTop(task.start)}px`;
+        block.style.height = `${Math.max(42, (task.duration / 60) * HOUR_HEIGHT)}px`;
+        block.innerHTML = `
+          <span class="resize-handle resize-top" data-resize="top"></span>
+          <span class="event-title"></span>
+          <span class="event-time"></span>
+          <span class="event-note"></span>
+          <span class="resize-handle resize-bottom" data-resize="bottom"></span>
+        `;
+        block.querySelector(".event-title").textContent = task.title;
+        block.querySelector(".event-time").textContent = formatRange(task);
+        block.querySelector(".event-note").textContent = task.note || "无备注";
+        block.addEventListener("pointerdown", startTimelinePointer);
+        eventLayer.append(block);
+      });
+    }
+
+    function summarize(items) {
+      return {
+        total: items.length,
+        done: items.filter((item) => item.done).length,
+        duration: items.reduce((sum, item) => sum + item.duration, 0)
+      };
+    }
+
+    function renderHistory() {
+      const allData = getAllDailyData();
+      const monthKey = monthPicker.value || selectedDateKey.slice(0, 7);
+      const yearKey = String(yearPicker.value || selectedDateKey.slice(0, 4));
+      const monthItems = Object.entries(allData)
+        .filter(([dateKey]) => dateKey.startsWith(monthKey))
+        .flatMap(([, dayTasks]) => dayTasks);
+      const yearItems = Object.entries(allData)
+        .filter(([dateKey]) => dateKey.startsWith(`${yearKey}-`))
+        .flatMap(([, dayTasks]) => dayTasks);
+      const monthSummary = summarize(monthItems);
+      const yearSummary = summarize(yearItems);
+
+      monthTotal.textContent = monthSummary.total;
+      monthDone.textContent = monthSummary.done;
+      monthDuration.textContent = formatDuration(monthSummary.duration);
+      yearTotal.textContent = yearSummary.total;
+      yearDone.textContent = yearSummary.done;
+      yearDuration.textContent = formatDuration(yearSummary.duration);
+
+      renderCalendar(allData, monthKey);
+      renderYearBars(allData, yearKey);
+    }
+
+    function renderCalendar(allData, monthKey) {
+      calendarGrid.innerHTML = "";
+      ["一", "二", "三", "四", "五", "六", "日"].forEach((day) => {
+        const cell = document.createElement("div");
+        cell.className = "weekday";
+        cell.textContent = day;
+        calendarGrid.append(cell);
+      });
+
+      const [year, month] = monthKey.split("-").map(Number);
+      const first = new Date(year, month - 1, 1);
+      const firstOffset = (first.getDay() + 6) % 7;
+      const daysInMonth = new Date(year, month, 0).getDate();
+
+      for (let index = 0; index < firstOffset; index += 1) {
+        const blank = document.createElement("div");
+        blank.className = "day-cell muted";
+        calendarGrid.append(blank);
+      }
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const dayTasks = allData[dateKey] || [];
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `day-cell${dayTasks.length ? " has-data" : ""}${dateKey === selectedDateKey ? " selected" : ""}`;
+        button.innerHTML = `<span>${day}</span>${dayTasks.length ? `<span class="count">${dayTasks.length}</span>` : ""}`;
+        button.addEventListener("click", () => switchDate(dateKey));
+        calendarGrid.append(button);
+      }
+    }
+
+    function renderYearBars(allData, yearKey) {
+      const monthlyTotals = Array.from({ length: 12 }, (_, index) => {
+        const prefix = `${yearKey}-${String(index + 1).padStart(2, "0")}`;
+        return Object.entries(allData)
+          .filter(([dateKey]) => dateKey.startsWith(prefix))
+          .reduce((sum, [, dayTasks]) => sum + dayTasks.length, 0);
+      });
+      const max = Math.max(1, ...monthlyTotals);
+      yearBars.innerHTML = "";
+      monthlyTotals.forEach((total, index) => {
+        const row = document.createElement("div");
+        row.className = "year-row";
+        row.innerHTML = `
+          <span>${monthNames[index]}</span>
+          <div class="bar"><span style="width:${(total / max) * 100}%"></span></div>
+          <span>${total}</span>
+        `;
+        yearBars.append(row);
+      });
+    }
+
+    function createTaskFromValues(values) {
+      const start = clampMinutes(parseTime(values.time) ?? 9 * 60);
+      const taskDuration = clampDuration(Number(values.duration) || DEFAULT_DURATION, start);
+      return {
+        id: createId(),
+        title: values.title,
+        note: values.note || "",
+        start,
+        time: formatTime(start),
+        duration: taskDuration,
+        done: false,
+        createdAt: Date.now()
+      };
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const targetDate = String(data.get("dateInput") || selectedDateKey);
+      if (targetDate !== selectedDateKey) switchDate(targetDate);
+
+      const title = String(data.get("title")).trim();
+      if (!title) return;
+
+      const start = String(data.get("time")).trim() || "09:00";
+      const taskDuration = clampDuration(parseDuration(durationText.value), parseTime(start) ?? 9 * 60);
+      tasks.push(createTaskFromValues({
+        title,
+        note: String(data.get("note")).trim(),
+        time: start,
+        duration: taskDuration
+      }));
+
+      saveTasks();
+      form.reset();
+      dateInput.value = selectedDateKey;
+      duration.value = DEFAULT_DURATION;
+      durationText.value = formatDuration(DEFAULT_DURATION);
+      document.querySelector("#title").focus();
+      render();
+    });
+
+    dateInput.addEventListener("change", () => {
+      if (dateInput.value) switchDate(dateInput.value);
+    });
+
+    monthPicker.addEventListener("change", () => {
+      if (!monthPicker.value) return;
+      yearPicker.value = monthPicker.value.slice(0, 4);
+      renderHistory();
+    });
+
+    yearPicker.addEventListener("change", renderHistory);
+    todayButton.addEventListener("click", () => switchDate(new Date().toLocaleDateString("sv-SE")));
+
+    timelineClickLayer.addEventListener("click", (event) => {
+      if (event.target !== timelineClickLayer) return;
+      const rect = timelineClickLayer.getBoundingClientRect();
+      const minutes = yToMinutes(event.clientY - rect.top);
+      openModal(null, minutes);
+    });
+
+    function startTimelinePointer(event) {
+      if (event.button !== 0) return;
+      const block = event.currentTarget;
+      const task = tasks.find((item) => item.id === block.dataset.id);
+      if (!task) return;
+
+      const handle = event.target.closest("[data-resize]");
+      activePointer = {
+        id: task.id,
+        mode: handle ? handle.dataset.resize : "move",
+        startY: event.clientY,
+        originalStart: task.start,
+        originalDuration: task.duration,
+        moved: false
+      };
+
+      block.setPointerCapture(event.pointerId);
+      block.addEventListener("pointermove", moveTimelinePointer);
+      block.addEventListener("pointerup", endTimelinePointer, { once: true });
+      block.addEventListener("pointercancel", endTimelinePointer, { once: true });
+      event.preventDefault();
+    }
+
+    function moveTimelinePointer(event) {
+      if (!activePointer) return;
+      const task = tasks.find((item) => item.id === activePointer.id);
+      if (!task) return;
+
+      const deltaMinutes = snap(((event.clientY - activePointer.startY) / HOUR_HEIGHT) * 60);
+      if (Math.abs(deltaMinutes) >= SNAP_MINUTES) activePointer.moved = true;
+
+      if (activePointer.mode === "move") {
+        task.start = Math.max(DAY_START, Math.min(DAY_END - task.duration, activePointer.originalStart + deltaMinutes));
+      }
+
+      if (activePointer.mode === "top") {
+        const latestStart = activePointer.originalStart + activePointer.originalDuration - SNAP_MINUTES;
+        const nextStart = Math.max(DAY_START, Math.min(latestStart, activePointer.originalStart + deltaMinutes));
+        task.start = nextStart;
+        task.duration = activePointer.originalDuration + activePointer.originalStart - nextStart;
+      }
+
+      if (activePointer.mode === "bottom") {
+        task.duration = clampDuration(activePointer.originalDuration + deltaMinutes, task.start);
+      }
+
+      task.start = snap(task.start);
+      task.duration = clampDuration(task.duration, task.start);
+      task.time = formatTime(task.start);
+
+      const block = event.currentTarget;
+      block.style.top = `${minuteToTop(task.start)}px`;
+      block.style.height = `${Math.max(42, (task.duration / 60) * HOUR_HEIGHT)}px`;
+      block.querySelector(".event-time").textContent = formatRange(task);
+    }
+
+    function endTimelinePointer(event) {
+      const clickedId = activePointer && !activePointer.moved && activePointer.mode === "move" ? activePointer.id : null;
+      event.currentTarget.removeEventListener("pointermove", moveTimelinePointer);
+      saveTasks();
+      activePointer = null;
+      render();
+      if (clickedId) {
+        const task = tasks.find((item) => item.id === clickedId);
+        if (task) openModal(task);
+      }
+    }
+
+    function toggleTask(id) {
+      tasks = tasks.map((task) => task.id === id ? { ...task, done: !task.done } : task);
+      saveTasks();
+      render();
+    }
+
+    function deleteTask(id) {
+      tasks = tasks.filter((task) => task.id !== id);
+      saveTasks();
+      closeTaskModal();
+      render();
+    }
+
+    function openModal(task, startMinutes = 9 * 60) {
+      const isEdit = Boolean(task);
+      modalTitle.textContent = isEdit ? "编辑日程" : "新增日程";
+      modalTaskId.value = task ? task.id : "";
+      modalTime.value = formatTime(task ? task.start : startMinutes);
+      modalDuration.value = task ? task.duration : DEFAULT_DURATION;
+      modalDurationText.value = formatDuration(task ? task.duration : DEFAULT_DURATION);
+      modalTaskTitle.value = task ? task.title : "";
+      modalNote.value = task ? task.note : "";
+      modalDoneToggle.textContent = task && task.done ? "取消完成" : "标记完成";
+      modalDoneToggle.style.display = isEdit ? "block" : "none";
+      modalDelete.style.display = isEdit ? "block" : "none";
+      modalActions.classList.toggle("with-delete", isEdit);
+      modalBackdrop.classList.add("open");
+      setTimeout(() => modalTaskTitle.focus(), 0);
+    }
+
+    function closeTaskModal() {
+      modalBackdrop.classList.remove("open");
+      modalForm.reset();
+    }
+
+    modalForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const title = modalTaskTitle.value.trim();
+      if (!title) return;
+
+      const start = clampMinutes(parseTime(modalTime.value) ?? 9 * 60);
+      const taskDuration = clampDuration(parseDuration(modalDurationText.value), start);
+      const id = modalTaskId.value;
+
+      if (id) {
+        tasks = tasks.map((task) => task.id === id ? {
+          ...task,
+          title,
+          note: modalNote.value.trim(),
+          start,
+          time: formatTime(start),
+          duration: taskDuration
+        } : task);
+      } else {
+        tasks.push(createTaskFromValues({
+          title,
+          note: modalNote.value.trim(),
+          time: formatTime(start),
+          duration: taskDuration
+        }));
+      }
+
+      saveTasks();
+      closeTaskModal();
+      render();
+    });
+
+    modalDoneToggle.addEventListener("click", () => {
+      if (!modalTaskId.value) return;
+      toggleTask(modalTaskId.value);
+      const task = tasks.find((item) => item.id === modalTaskId.value);
+      if (task) openModal(task);
+    });
+
+    modalDelete.addEventListener("click", () => {
+      if (modalTaskId.value) deleteTask(modalTaskId.value);
+    });
+
+    closeModal.addEventListener("click", closeTaskModal);
+    modalBackdrop.addEventListener("click", (event) => {
+      if (event.target === modalBackdrop) closeTaskModal();
+    });
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && modalBackdrop.classList.contains("open")) closeTaskModal();
+    });
+  </script>
+</body>
+</html>
