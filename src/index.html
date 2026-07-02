@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>个人日程表</title>
-  <link rel="icon" type="image/png" href="/public/icon/icon.png">
+  <link rel="icon" type="image/png" href="../public/icon/icon.png">
   <style>
     :root {
       color-scheme: light;
-      --bg: #fbf8fb;
+      --bg: #f9f8ff;
       --panel: #ffffff;
       --ink: #26303a;
       --muted: #73808c;
@@ -38,10 +38,21 @@
       margin: 0;
       min-height: 100vh;
       background:
-        linear-gradient(135deg, rgba(159, 215, 255, 0.28), transparent 32%),
-        linear-gradient(315deg, rgba(255, 193, 216, 0.28), transparent 34%),
+        radial-gradient(circle at 18% 16%, rgba(159, 215, 255, 0.46), transparent 34%),
+        radial-gradient(circle at 82% 18%, rgba(255, 193, 216, 0.48), transparent 34%),
+        radial-gradient(circle at 50% 88%, rgba(205, 238, 255, 0.58), transparent 38%),
+        linear-gradient(135deg, #eff8ff 0%, #fff3fa 48%, #eef7ff 100%),
         var(--bg);
       color: var(--ink);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: none;
+    }
+
+    body::after {
+      content: none;
     }
 
     body::before {
@@ -81,6 +92,8 @@
     button { -webkit-tap-highlight-color: transparent; }
 
     .app {
+      position: relative;
+      z-index: 1;
       width: min(1220px, calc(100% - 32px));
       margin: 0 auto;
       padding: 34px 0;
