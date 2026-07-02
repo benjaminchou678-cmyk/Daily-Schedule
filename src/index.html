@@ -20,6 +20,9 @@
       --pink: #ffc1d8;
       --pink-deep: #e27aa4;
       --pink-ink: #7d2e52;
+      --done-yellow: #ffe99f;
+      --done-yellow-deep: #eac75f;
+      --done-yellow-ink: #6b531c;
       --done: #b9c2ce;
       --danger: #c95f75;
       --shadow: 0 14px 40px rgba(38, 48, 58, 0.1);
@@ -31,6 +34,7 @@
     * { box-sizing: border-box; }
 
     body {
+      position: relative;
       margin: 0;
       min-height: 100vh;
       background:
@@ -38,6 +42,39 @@
         linear-gradient(315deg, rgba(255, 193, 216, 0.28), transparent 34%),
         var(--bg);
       color: var(--ink);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 12% 12%, rgba(255, 233, 159, 0.95) 0 2px, transparent 3px),
+        radial-gradient(circle at 22% 28%, rgba(255, 255, 255, 0.92) 0 1px, transparent 2px),
+        radial-gradient(circle at 76% 10%, rgba(255, 233, 159, 0.88) 0 2px, transparent 3px),
+        radial-gradient(circle at 88% 24%, rgba(255, 255, 255, 0.9) 0 1px, transparent 2px),
+        radial-gradient(circle at 62% 38%, rgba(159, 215, 255, 0.68) 0 2px, transparent 3px),
+        radial-gradient(circle at 16% 72%, rgba(255, 193, 216, 0.62) 0 2px, transparent 3px);
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      right: max(24px, 5vw);
+      bottom: 24px;
+      width: min(260px, 42vw);
+      aspect-ratio: 1;
+      z-index: -1;
+      pointer-events: none;
+      opacity: 0.38;
+      background:
+        radial-gradient(circle at 52% 60%, rgba(255, 233, 159, 0.95) 0 35%, transparent 36%),
+        radial-gradient(circle at 44% 28%, rgba(64, 73, 91, 0.8) 0 5%, transparent 5.5%),
+        linear-gradient(18deg, transparent 44%, rgba(226, 122, 164, 0.68) 45% 49%, transparent 50%),
+        radial-gradient(ellipse at 49% 45%, rgba(64, 73, 91, 0.78) 0 8%, transparent 8.5%);
+      filter: blur(0.1px);
     }
 
     button, input, textarea { font: inherit; }
@@ -293,21 +330,19 @@
 
     .task.done {
       background:
-        radial-gradient(circle at 87% 18%, rgba(255, 193, 216, 0.55) 0 7px, transparent 8px),
-        radial-gradient(circle at 91% 32%, rgba(159, 215, 255, 0.52) 0 5px, transparent 6px),
-        linear-gradient(90deg, rgba(159, 215, 255, 0.2), rgba(255, 193, 216, 0.2) 58%, transparent);
+        radial-gradient(circle at 90% 24%, rgba(255, 193, 216, 0.52) 0 6px, transparent 7px),
+        linear-gradient(90deg, rgba(159, 215, 255, 0.22), rgba(255, 193, 216, 0.24) 58%, transparent);
     }
 
     .task.done::after {
-      content: "✿ ✦";
+      content: "✿";
       position: absolute;
-      right: 84px;
+      right: 86px;
       top: 13px;
       color: var(--pink-deep);
       font-size: 17px;
-      letter-spacing: 3px;
       pointer-events: none;
-      opacity: 0.9;
+      opacity: 0.88;
     }
 
     .task-actions { display: flex; gap: 6px; }
@@ -408,11 +443,13 @@
     .event-block.blue { background: linear-gradient(135deg, #cdeeff, var(--blue)); border: 1px solid rgba(79, 159, 215, 0.28); }
     .event-block.pink { background: linear-gradient(135deg, #ffe0eb, var(--pink)); border: 1px solid rgba(226, 122, 164, 0.28); color: #603149; }
     .event-block.done {
-      box-shadow: 0 12px 26px rgba(226, 122, 164, 0.2);
+      background: linear-gradient(135deg, #fff8cc, var(--done-yellow)) !important;
+      border-color: rgba(234, 199, 95, 0.78) !important;
+      color: var(--done-yellow-ink) !important;
+      box-shadow: 0 14px 30px rgba(234, 199, 95, 0.34);
     }
 
-    .event-block.done::before,
-    .event-block.done::after {
+    .event-block.done::before {
       position: absolute;
       pointer-events: none;
       z-index: 0;
@@ -422,21 +459,14 @@
       content: "";
       inset: 0;
       background:
-        radial-gradient(circle at 82% 24%, rgba(255, 255, 255, 0.8) 0 2px, transparent 3px),
-        radial-gradient(circle at 88% 32%, rgba(226, 122, 164, 0.78) 0 2px, transparent 3px),
-        radial-gradient(circle at 76% 38%, rgba(79, 159, 215, 0.72) 0 2px, transparent 3px),
-        radial-gradient(circle at 90% 52%, rgba(255, 255, 255, 0.68) 0 2px, transparent 3px),
-        radial-gradient(circle at 78% 60%, rgba(255, 193, 216, 0.78) 0 4px, transparent 5px);
+        radial-gradient(circle at 76% 18%, rgba(255, 255, 255, 0.95) 0 2px, transparent 3px),
+        radial-gradient(circle at 83% 24%, rgba(226, 122, 164, 0.82) 0 3px, transparent 4px),
+        radial-gradient(circle at 90% 30%, rgba(79, 159, 215, 0.72) 0 3px, transparent 4px),
+        radial-gradient(circle at 80% 44%, rgba(255, 255, 255, 0.8) 0 2px, transparent 3px),
+        radial-gradient(circle at 92% 56%, rgba(226, 122, 164, 0.7) 0 2px, transparent 3px),
+        radial-gradient(circle at 72% 62%, rgba(255, 193, 216, 0.72) 0 5px, transparent 6px),
+        linear-gradient(130deg, transparent 0 54%, rgba(255, 255, 255, 0.38) 55% 57%, transparent 58%);
       opacity: 0.95;
-    }
-
-    .event-block.done::after {
-      content: "✿ ✦ ✿";
-      right: 12px;
-      bottom: 8px;
-      color: rgba(96, 49, 73, 0.72);
-      font-size: 14px;
-      letter-spacing: 2px;
     }
 
     .event-block.done .event-title,
@@ -1036,21 +1066,25 @@
 
     async function renderDailyQuote() {
       const dateKey = selectedDateKey;
+      const todayKey = new Date().toLocaleDateString("sv-SE");
       const requestId = ++quoteRequestId;
       const cacheKey = `${QUOTE_STORAGE_PREFIX}${dateKey}`;
       const cached = localStorage.getItem(cacheKey);
 
       if (cached) {
         try {
-          setQuote(JSON.parse(cached), dateKey);
-          return;
+          const cachedQuote = JSON.parse(cached);
+          if (cachedQuote.fetchedOn === todayKey) {
+            setQuote(cachedQuote, dateKey);
+            return;
+          }
         } catch {
           localStorage.removeItem(cacheKey);
         }
       }
 
       dailyQuoteText.textContent = "正在从外部语句服务获取今日一句...";
-      dailyQuoteSource.textContent = "一言 hitokoto.cn";
+      dailyQuoteSource.textContent = "正在更新";
       dailyQuoteDate.textContent = dateKey;
 
       try {
@@ -1062,7 +1096,7 @@
         const quote = {
           text: data.hitokoto || "今天也要稳稳地向前。",
           source: data.from ? `《${data.from}》` : "一言",
-          provider: "一言 hitokoto.cn"
+          fetchedOn: todayKey
         };
         localStorage.setItem(cacheKey, JSON.stringify(quote));
         setQuote(quote, dateKey);
@@ -1071,7 +1105,7 @@
         setQuote({
           text: "暂时无法连接外部语句服务，稍后再来刷新这一句。",
           source: "外部数据加载失败",
-          provider: "一言 hitokoto.cn"
+          fetchedOn: todayKey
         }, dateKey);
       }
     }
@@ -1079,7 +1113,7 @@
     function setQuote(quote, dateKey) {
       dailyQuoteText.textContent = `“${quote.text}”`;
       dailyQuoteSource.textContent = quote.source;
-      dailyQuoteDate.textContent = `${dateKey} · ${quote.provider || "外部数据"}`;
+      dailyQuoteDate.textContent = dateKey;
     }
 
     function renderStats() {
