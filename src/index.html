@@ -227,6 +227,7 @@
     }
 
     .task {
+      position: relative;
       display: grid;
       grid-template-columns: 24px 1fr auto;
       gap: 12px;
@@ -234,6 +235,7 @@
       border-bottom: 1px solid var(--line);
       align-items: start;
       border-left: 5px solid transparent;
+      overflow: hidden;
     }
 
     .task:last-child { border-bottom: 0; }
@@ -256,7 +258,12 @@
     }
 
     .task.pink .checkbox { border-color: var(--pink-deep); }
-    .task.done .checkbox { background: var(--done); border-color: var(--done); }
+    .task.done .checkbox {
+      background: linear-gradient(135deg, var(--blue), var(--pink));
+      border-color: rgba(226, 122, 164, 0.48);
+      color: var(--pink-ink);
+      font-weight: 800;
+    }
 
     .time {
       display: inline-block;
@@ -284,10 +291,23 @@
       white-space: pre-wrap;
     }
 
-    .task.done .title, .task.done .note, .task.done .time {
-      color: #8b939d;
-      text-decoration: line-through;
-      text-decoration-thickness: 1px;
+    .task.done {
+      background:
+        radial-gradient(circle at 87% 18%, rgba(255, 193, 216, 0.55) 0 7px, transparent 8px),
+        radial-gradient(circle at 91% 32%, rgba(159, 215, 255, 0.52) 0 5px, transparent 6px),
+        linear-gradient(90deg, rgba(159, 215, 255, 0.2), rgba(255, 193, 216, 0.2) 58%, transparent);
+    }
+
+    .task.done::after {
+      content: "✿ ✦";
+      position: absolute;
+      right: 84px;
+      top: 13px;
+      color: var(--pink-deep);
+      font-size: 17px;
+      letter-spacing: 3px;
+      pointer-events: none;
+      opacity: 0.9;
     }
 
     .task-actions { display: flex; gap: 6px; }
@@ -388,15 +408,42 @@
     .event-block.blue { background: linear-gradient(135deg, #cdeeff, var(--blue)); border: 1px solid rgba(79, 159, 215, 0.28); }
     .event-block.pink { background: linear-gradient(135deg, #ffe0eb, var(--pink)); border: 1px solid rgba(226, 122, 164, 0.28); color: #603149; }
     .event-block.done {
-      background: linear-gradient(135deg, #edf0f4, #cfd6df) !important;
-      color: rgba(38, 48, 58, 0.72);
-      border-color: rgba(115, 128, 140, 0.2);
-      box-shadow: 0 8px 18px rgba(38, 48, 58, 0.1);
+      box-shadow: 0 12px 26px rgba(226, 122, 164, 0.2);
     }
 
-    .event-block.done .event-title, .event-block.done .event-note, .event-block.done .event-time {
-      text-decoration: line-through;
-      text-decoration-thickness: 1px;
+    .event-block.done::before,
+    .event-block.done::after {
+      position: absolute;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .event-block.done::before {
+      content: "";
+      inset: 0;
+      background:
+        radial-gradient(circle at 82% 24%, rgba(255, 255, 255, 0.8) 0 2px, transparent 3px),
+        radial-gradient(circle at 88% 32%, rgba(226, 122, 164, 0.78) 0 2px, transparent 3px),
+        radial-gradient(circle at 76% 38%, rgba(79, 159, 215, 0.72) 0 2px, transparent 3px),
+        radial-gradient(circle at 90% 52%, rgba(255, 255, 255, 0.68) 0 2px, transparent 3px),
+        radial-gradient(circle at 78% 60%, rgba(255, 193, 216, 0.78) 0 4px, transparent 5px);
+      opacity: 0.95;
+    }
+
+    .event-block.done::after {
+      content: "✿ ✦ ✿";
+      right: 12px;
+      bottom: 8px;
+      color: rgba(96, 49, 73, 0.72);
+      font-size: 14px;
+      letter-spacing: 2px;
+    }
+
+    .event-block.done .event-title,
+    .event-block.done .event-note,
+    .event-block.done .event-time {
+      position: relative;
+      z-index: 1;
     }
 
     .event-title {
@@ -761,19 +808,9 @@
     const SNAP_MINUTES = 15;
     const DEFAULT_DURATION = 60;
     const STORAGE_PREFIX = "daily-schedule:";
+    const QUOTE_STORAGE_PREFIX = "daily-quote:";
+    const QUOTE_ENDPOINT = "https://v1.hitokoto.cn/?encode=json&c=d&c=h&c=i";
     const monthNames = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
-    const dailyQuotes = [
-      { text: "生活就像一盒巧克力，你永远不知道下一颗是什么味道。", source: "《阿甘正传》" },
-      { text: "去做吧。事情做了，答案自然会出现。", source: "每日提醒" },
-      { text: "希望是美好的，也许是人间至善，而美好的事物永不消逝。", source: "《肖申克的救赎》" },
-      { text: "把今天安排好，就是给明天留出一点光。", source: "每日提醒" },
-      { text: "不是每一天都很好，但每一天里都有一些好的东西。", source: "每日提醒" },
-      { text: "伟大的愿望不是靠冲动完成的，而是靠一次次准时开始。", source: "每日提醒" },
-      { text: "所有大人都曾经是孩子，只是少数人记得。", source: "《小王子》" },
-      { text: "慢一点也没关系，只要你还在往前。", source: "每日提醒" },
-      { text: "你不能放弃这个世界，因为你还有地方要去。", source: "《海上钢琴师》" },
-      { text: "今天先完成一件小事，世界就会清楚一点。", source: "每日提醒" }
-    ];
 
     const list = document.querySelector("#taskList");
     const selectedDateText = document.querySelector("#selectedDateText");
@@ -815,6 +852,7 @@
     let selectedDateKey = new Date().toLocaleDateString("sv-SE");
     let tasks = migrateTasks(loadTasks(selectedDateKey));
     let activePointer = null;
+    let quoteRequestId = 0;
 
     monthPicker.value = selectedDateKey.slice(0, 7);
     yearPicker.value = selectedDateKey.slice(0, 4);
@@ -996,12 +1034,52 @@
       selectedDateText.textContent = `${selectedDateKey} ${weekday}${selectedDateKey === todayKey ? " · 今天" : ""}`;
     }
 
-    function renderDailyQuote() {
-      const index = [...selectedDateKey].reduce((sum, char) => sum + char.charCodeAt(0), 0) % dailyQuotes.length;
-      const quote = dailyQuotes[index];
+    async function renderDailyQuote() {
+      const dateKey = selectedDateKey;
+      const requestId = ++quoteRequestId;
+      const cacheKey = `${QUOTE_STORAGE_PREFIX}${dateKey}`;
+      const cached = localStorage.getItem(cacheKey);
+
+      if (cached) {
+        try {
+          setQuote(JSON.parse(cached), dateKey);
+          return;
+        } catch {
+          localStorage.removeItem(cacheKey);
+        }
+      }
+
+      dailyQuoteText.textContent = "正在从外部语句服务获取今日一句...";
+      dailyQuoteSource.textContent = "一言 hitokoto.cn";
+      dailyQuoteDate.textContent = dateKey;
+
+      try {
+        const response = await fetch(QUOTE_ENDPOINT, { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (requestId !== quoteRequestId || dateKey !== selectedDateKey) return;
+
+        const quote = {
+          text: data.hitokoto || "今天也要稳稳地向前。",
+          source: data.from ? `《${data.from}》` : "一言",
+          provider: "一言 hitokoto.cn"
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(quote));
+        setQuote(quote, dateKey);
+      } catch {
+        if (requestId !== quoteRequestId || dateKey !== selectedDateKey) return;
+        setQuote({
+          text: "暂时无法连接外部语句服务，稍后再来刷新这一句。",
+          source: "外部数据加载失败",
+          provider: "一言 hitokoto.cn"
+        }, dateKey);
+      }
+    }
+
+    function setQuote(quote, dateKey) {
       dailyQuoteText.textContent = `“${quote.text}”`;
       dailyQuoteSource.textContent = quote.source;
-      dailyQuoteDate.textContent = selectedDateKey;
+      dailyQuoteDate.textContent = `${dateKey} · ${quote.provider || "外部数据"}`;
     }
 
     function renderStats() {
@@ -1036,7 +1114,7 @@
         checkbox.className = "checkbox";
         checkbox.type = "button";
         checkbox.setAttribute("aria-label", task.done ? "标记为未完成" : "标记为完成");
-        checkbox.textContent = task.done ? "✓" : "";
+        checkbox.textContent = task.done ? "✿" : "";
         checkbox.addEventListener("click", () => toggleTask(task.id));
 
         const content = document.createElement("div");
