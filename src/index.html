@@ -422,6 +422,11 @@
       touch-action: none;
     }
 
+    .event-block:hover,
+    .event-block:focus {
+      z-index: 30;
+    }
+
     .event-block:active { cursor: grabbing; }
     .event-block.blue { background: linear-gradient(135deg, #cdeeff, var(--blue)); border: 1px solid rgba(79, 159, 215, 0.28); }
     .event-block.pink { background: linear-gradient(135deg, #ffe0eb, var(--pink)); border: 1px solid rgba(226, 122, 164, 0.28); color: #603149; }
@@ -457,10 +462,9 @@
       content: attr(data-tooltip);
       position: absolute;
       top: 50%;
-      right: calc(100% + 12px);
+      left: calc(100% + 12px);
       z-index: 20;
       width: min(280px, calc(100vw - 48px));
-      max-height: min(320px, 70vh);
       padding: 12px 14px;
       border: 1px solid rgba(159, 215, 255, 0.34);
       border-radius: 8px;
@@ -473,11 +477,11 @@
       font-weight: 600;
       line-height: 1.55;
       white-space: pre-wrap;
-      overflow: auto;
+      overflow-wrap: anywhere;
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
-      transform: translateY(-50%) translateX(4px);
+      transform: translateY(-50%) translateX(-4px);
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
     }
 
@@ -488,14 +492,14 @@
       transform: translateY(-50%);
     }
 
-    .event-block.tooltip-right::after {
-      right: auto;
-      left: calc(100% + 12px);
-      transform: translateY(-50%) translateX(-4px);
+    .event-block.tooltip-left::after {
+      right: calc(100% + 12px);
+      left: auto;
+      transform: translateY(-50%) translateX(4px);
     }
 
-    .event-block.tooltip-right:hover::after,
-    .event-block.tooltip-right.show-tooltip::after {
+    .event-block.tooltip-left:hover::after,
+    .event-block.tooltip-left.show-tooltip::after {
       transform: translateY(-50%);
     }
 
@@ -1244,7 +1248,8 @@
         block.className = `event-block ${colorClass(index)}${task.done ? " done" : ""}`;
         block.dataset.id = task.id;
         block.dataset.tooltip = timelineTooltipText(task);
-        block.title = timelineTooltipText(task);
+        block.setAttribute("aria-label", timelineTooltipText(task));
+        block.tabIndex = 0;
         block.style.top = `${minuteToTop(task.start)}px`;
         block.style.height = `${Math.max(42, (task.duration / 60) * HOUR_HEIGHT)}px`;
         block.innerHTML = `
@@ -1273,8 +1278,10 @@
     function positionTimelineTooltip(event) {
       const block = event.currentTarget;
       const tooltipWidth = Math.min(280, window.innerWidth - 48);
-      const leftSpace = block.getBoundingClientRect().left;
-      block.classList.toggle("tooltip-right", leftSpace < tooltipWidth + 18);
+      const rect = block.getBoundingClientRect();
+      const rightSpace = window.innerWidth - rect.right;
+      const leftSpace = rect.left;
+      block.classList.toggle("tooltip-left", rightSpace < tooltipWidth + 18 && leftSpace > rightSpace);
     }
 
     function summarize(items) {
