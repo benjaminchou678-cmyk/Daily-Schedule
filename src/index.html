@@ -458,51 +458,6 @@
       opacity: 0.95;
     }
 
-    .event-block::after {
-      content: attr(data-tooltip);
-      position: absolute;
-      top: 50%;
-      left: calc(100% + 12px);
-      z-index: 20;
-      width: min(280px, calc(100vw - 48px));
-      padding: 12px 14px;
-      border: 1px solid rgba(159, 215, 255, 0.34);
-      border-radius: 8px;
-      background:
-        linear-gradient(135deg, rgba(239, 248, 255, 0.96), rgba(255, 243, 250, 0.96)),
-        #ffffff;
-      box-shadow: 0 18px 40px rgba(31, 45, 61, 0.16);
-      color: var(--ink);
-      font-size: 13px;
-      font-weight: 600;
-      line-height: 1.55;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-      transform: translateY(-50%) translateX(-4px);
-      transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
-    }
-
-    .event-block:hover::after,
-    .event-block.show-tooltip::after {
-      opacity: 1;
-      visibility: visible;
-      transform: translateY(-50%);
-    }
-
-    .event-block.tooltip-left::after {
-      right: calc(100% + 12px);
-      left: auto;
-      transform: translateY(-50%) translateX(4px);
-    }
-
-    .event-block.tooltip-left:hover::after,
-    .event-block.tooltip-left.show-tooltip::after {
-      transform: translateY(-50%);
-    }
-
     .event-content,
     .event-block.done .event-title,
     .event-block.done .event-note,
@@ -556,6 +511,36 @@
 
     .resize-top { top: 0; }
     .resize-bottom { bottom: 0; }
+
+    .timeline-tooltip {
+      position: fixed;
+      z-index: 1000;
+      width: min(300px, calc(100vw - 32px));
+      padding: 12px 14px;
+      border: 1px solid rgba(159, 215, 255, 0.34);
+      border-radius: 8px;
+      background:
+        linear-gradient(135deg, rgba(239, 248, 255, 0.97), rgba(255, 243, 250, 0.97)),
+        #ffffff;
+      box-shadow: 0 18px 40px rgba(31, 45, 61, 0.16);
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.55;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(-50%) translateX(-4px);
+      transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+    }
+
+    .timeline-tooltip.is-visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(-50%);
+    }
 
     .quote-card {
       margin-top: 14px;
@@ -880,6 +865,7 @@
       </div>
     </form>
   </div>
+  <div class="timeline-tooltip" id="timelineTooltip" role="tooltip"></div>
 
   <script>
     const DAY_START = 6 * 60;
@@ -928,6 +914,7 @@
     const modalDoneToggle = document.querySelector("#modalDoneToggle");
     const modalDelete = document.querySelector("#modalDelete");
     const closeModal = document.querySelector("#closeModal");
+    const timelineTooltip = document.querySelector("#timelineTooltip");
 
     let selectedDateKey = new Date().toLocaleDateString("sv-SE");
     let tasks = migrateTasks(loadTasks(selectedDateKey));
@@ -1242,6 +1229,7 @@
     }
 
     function renderTimeline() {
+      hideTimelineTooltip();
       eventLayer.innerHTML = "";
       sortTasks(tasks).forEach((task, index) => {
         const block = document.createElement("div");
@@ -1264,8 +1252,10 @@
         block.querySelector(".event-title").textContent = task.title;
         block.querySelector(".event-time").textContent = formatRange(task);
         block.querySelector(".event-note").textContent = task.note || "无备注";
-        block.addEventListener("mouseenter", positionTimelineTooltip);
-        block.addEventListener("focus", positionTimelineTooltip);
+        block.addEventListener("mouseenter", showTimelineTooltip);
+        block.addEventListener("focus", showTimelineTooltip);
+        block.addEventListener("mouseleave", hideTimelineTooltip);
+        block.addEventListener("blur", hideTimelineTooltip);
         block.addEventListener("pointerdown", startTimelinePointer);
         eventLayer.append(block);
       });
@@ -1275,13 +1265,44 @@
       return `${task.title}\n${formatRange(task)}\n${task.note || "无备注"}`;
     }
 
-    function positionTimelineTooltip(event) {
+    function isTimelineTextClipped(block) {
+      const content = block.querySelector(".event-content");
+      const title = block.querySelector(".event-title");
+      const time = block.querySelector(".event-time");
+      const note = block.querySelector(".event-note");
+      return [content, title, time, note].some((node) => (
+        node && (node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight)
+      ));
+    }
+
+    function showTimelineTooltip(event) {
       const block = event.currentTarget;
-      const tooltipWidth = Math.min(280, window.innerWidth - 48);
+      if (!isTimelineTextClipped(block)) {
+        hideTimelineTooltip();
+        return;
+      }
+
+      timelineTooltip.textContent = block.dataset.tooltip || "";
+      timelineTooltip.classList.add("is-visible");
+
       const rect = block.getBoundingClientRect();
-      const rightSpace = window.innerWidth - rect.right;
-      const leftSpace = rect.left;
-      block.classList.toggle("tooltip-left", rightSpace < tooltipWidth + 18 && leftSpace > rightSpace);
+      const tooltipRect = timelineTooltip.getBoundingClientRect();
+      const gap = 12;
+      const rightX = rect.right + gap;
+      const leftX = rect.left - tooltipRect.width - gap;
+      const canOpenRight = rightX + tooltipRect.width <= window.innerWidth - 16;
+      const left = canOpenRight ? rightX : Math.max(16, leftX);
+      const top = Math.min(
+        window.innerHeight - tooltipRect.height / 2 - 16,
+        Math.max(16 + tooltipRect.height / 2, rect.top + rect.height / 2)
+      );
+
+      timelineTooltip.style.left = `${left}px`;
+      timelineTooltip.style.top = `${top}px`;
+    }
+
+    function hideTimelineTooltip() {
+      timelineTooltip.classList.remove("is-visible");
     }
 
     function summarize(items) {
@@ -1402,6 +1423,7 @@
 
     function startTimelinePointer(event) {
       if (event.button !== 0) return;
+      hideTimelineTooltip();
       const block = event.currentTarget;
       const task = tasks.find((item) => item.id === block.dataset.id);
       if (!task) return;
