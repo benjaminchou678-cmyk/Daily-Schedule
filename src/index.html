@@ -397,7 +397,7 @@
       border: 1px solid var(--line);
       border-radius: 8px;
       background: #fcfdff;
-      overflow: hidden;
+      overflow: visible;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
     }
 
@@ -442,14 +442,22 @@
       right: 12px;
       min-height: 38px;
       padding: 10px 12px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
       border-radius: 8px;
       color: #1d3648;
       box-shadow: var(--soft-shadow);
       cursor: grab;
-      overflow: hidden;
+      overflow: visible;
       pointer-events: auto;
       user-select: none;
       touch-action: none;
+    }
+
+    .event-block:hover,
+    .event-block:focus {
+      z-index: 30;
     }
 
     .event-block:active { cursor: grabbing; }
@@ -471,6 +479,7 @@
     .event-block.done::before {
       content: "";
       inset: 0;
+      border-radius: inherit;
       background:
         radial-gradient(circle at 76% 18%, rgba(255, 255, 255, 0.95) 0 2px, transparent 3px),
         radial-gradient(circle at 83% 24%, rgba(226, 122, 164, 0.82) 0 3px, transparent 4px),
@@ -482,11 +491,18 @@
       opacity: 0.95;
     }
 
+    .event-content,
     .event-block.done .event-title,
     .event-block.done .event-note,
     .event-block.done .event-time {
       position: relative;
       z-index: 1;
+    }
+
+    .event-content {
+      min-height: 0;
+      max-height: 100%;
+      overflow: hidden;
     }
 
     .event-title {
@@ -509,6 +525,15 @@
       white-space: nowrap;
     }
 
+    .event-note {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
     .resize-handle {
       position: absolute;
       left: 0;
@@ -519,6 +544,36 @@
 
     .resize-top { top: 0; }
     .resize-bottom { bottom: 0; }
+
+    .timeline-tooltip {
+      position: fixed;
+      z-index: 1000;
+      width: min(300px, calc(100vw - 32px));
+      padding: 12px 14px;
+      border: 1px solid rgba(159, 215, 255, 0.34);
+      border-radius: 8px;
+      background:
+        linear-gradient(135deg, rgba(239, 248, 255, 0.97), rgba(255, 243, 250, 0.97)),
+        #ffffff;
+      box-shadow: 0 18px 40px rgba(31, 45, 61, 0.16);
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.55;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(-50%) translateX(-4px);
+      transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+    }
+
+    .timeline-tooltip.is-visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(-50%);
+    }
 
     .quote-card {
       margin-top: 14px;
@@ -843,6 +898,7 @@
       </div>
     </form>
   </div>
+  <div class="timeline-tooltip" id="timelineTooltip" role="tooltip"></div>
 
   <script>
     const DAY_START = 6 * 60;
@@ -891,6 +947,7 @@
     const modalDoneToggle = document.querySelector("#modalDoneToggle");
     const modalDelete = document.querySelector("#modalDelete");
     const closeModal = document.querySelector("#closeModal");
+    const timelineTooltip = document.querySelector("#timelineTooltip");
 
     let selectedDateKey = new Date().toLocaleDateString("sv-SE");
     let tasks = migrateTasks(loadTasks(selectedDateKey));
@@ -1205,26 +1262,80 @@
     }
 
     function renderTimeline() {
+      hideTimelineTooltip();
       eventLayer.innerHTML = "";
       sortTasks(tasks).forEach((task, index) => {
         const block = document.createElement("div");
         block.className = `event-block ${colorClass(index)}${task.done ? " done" : ""}`;
         block.dataset.id = task.id;
+        block.dataset.tooltip = timelineTooltipText(task);
+        block.setAttribute("aria-label", timelineTooltipText(task));
+        block.tabIndex = 0;
         block.style.top = `${minuteToTop(task.start)}px`;
         block.style.height = `${Math.max(42, (task.duration / 60) * HOUR_HEIGHT)}px`;
         block.innerHTML = `
           <span class="resize-handle resize-top" data-resize="top"></span>
-          <span class="event-title"></span>
-          <span class="event-time"></span>
-          <span class="event-note"></span>
+          <div class="event-content">
+            <span class="event-title"></span>
+            <span class="event-time"></span>
+            <span class="event-note"></span>
+          </div>
           <span class="resize-handle resize-bottom" data-resize="bottom"></span>
         `;
         block.querySelector(".event-title").textContent = task.title;
         block.querySelector(".event-time").textContent = formatRange(task);
         block.querySelector(".event-note").textContent = task.note || "无备注";
+        block.addEventListener("mouseenter", showTimelineTooltip);
+        block.addEventListener("focus", showTimelineTooltip);
+        block.addEventListener("mouseleave", hideTimelineTooltip);
+        block.addEventListener("blur", hideTimelineTooltip);
         block.addEventListener("pointerdown", startTimelinePointer);
         eventLayer.append(block);
       });
+    }
+
+    function timelineTooltipText(task) {
+      return `${task.title}\n${formatRange(task)}\n${task.note || "无备注"}`;
+    }
+
+    function isTimelineTextClipped(block) {
+      const content = block.querySelector(".event-content");
+      const title = block.querySelector(".event-title");
+      const time = block.querySelector(".event-time");
+      const note = block.querySelector(".event-note");
+      return [content, title, time, note].some((node) => (
+        node && (node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight)
+      ));
+    }
+
+    function showTimelineTooltip(event) {
+      const block = event.currentTarget;
+      if (!isTimelineTextClipped(block)) {
+        hideTimelineTooltip();
+        return;
+      }
+
+      timelineTooltip.textContent = block.dataset.tooltip || "";
+      timelineTooltip.classList.add("is-visible");
+
+      const rect = block.getBoundingClientRect();
+      const tooltipRect = timelineTooltip.getBoundingClientRect();
+      const gap = 12;
+      const rightX = rect.right + gap;
+      const leftX = rect.left - tooltipRect.width - gap;
+      const canOpenRight = rightX + tooltipRect.width <= window.innerWidth - 16;
+      const left = canOpenRight ? rightX : Math.max(16, leftX);
+      const top = Math.min(
+        window.innerHeight - tooltipRect.height / 2 - 16,
+        Math.max(16 + tooltipRect.height / 2, rect.top + rect.height / 2)
+      );
+
+      timelineTooltip.style.left = `${left}px`;
+      timelineTooltip.style.top = `${top}px`;
+    }
+
+    function hideTimelineTooltip() {
+      timelineTooltip.classList.remove("is-visible");
     }
 
     function summarize(items) {
@@ -1345,6 +1456,7 @@
 
     function startTimelinePointer(event) {
       if (event.button !== 0) return;
+      hideTimelineTooltip();
       const block = event.currentTarget;
       const task = tasks.find((item) => item.id === block.dataset.id);
       if (!task) return;
