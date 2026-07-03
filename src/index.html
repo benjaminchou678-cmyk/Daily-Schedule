@@ -409,6 +409,9 @@
       right: 12px;
       min-height: 38px;
       padding: 10px 12px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
       border-radius: 8px;
       color: #1d3648;
       box-shadow: var(--soft-shadow);
@@ -449,11 +452,36 @@
       opacity: 0.95;
     }
 
+    .event-content,
     .event-block.done .event-title,
     .event-block.done .event-note,
     .event-block.done .event-time {
       position: relative;
       z-index: 1;
+    }
+
+    .event-content {
+      min-height: 0;
+      max-height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+      padding-right: 5px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(79, 159, 215, 0.34) transparent;
+    }
+
+    .event-content::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    .event-content::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: rgba(79, 159, 215, 0.32);
+    }
+
+    .event-content::-webkit-scrollbar-track {
+      background: transparent;
     }
 
     .event-title {
@@ -471,9 +499,8 @@
       font-size: 12px;
       line-height: 1.25;
       opacity: 0.88;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
     }
 
     .resize-handle {
@@ -1181,9 +1208,11 @@
         block.style.height = `${Math.max(42, (task.duration / 60) * HOUR_HEIGHT)}px`;
         block.innerHTML = `
           <span class="resize-handle resize-top" data-resize="top"></span>
-          <span class="event-title"></span>
-          <span class="event-time"></span>
-          <span class="event-note"></span>
+          <div class="event-content">
+            <span class="event-title"></span>
+            <span class="event-time"></span>
+            <span class="event-note"></span>
+          </div>
           <span class="resize-handle resize-bottom" data-resize="bottom"></span>
         `;
         block.querySelector(".event-title").textContent = task.title;
