@@ -95,3 +95,62 @@ git push -u origin main
 ```text
 https://github.com/your-name/daily-schedule.git
 ```
+
+## Local Backend, Notifications, and LLM
+
+`npm start` now starts the local backend at:
+
+```text
+http://localhost:5173
+```
+
+The backend serves the website, API routes, file-backed local database, scheduled reminders, Windows desktop notifications, and the weekly LLM comment module.
+
+Use the old static-only server only when debugging the frontend without backend features:
+
+```bash
+npm run start:static
+```
+
+Backend architecture details are in `docs/backend-architecture.md`.
+
+Backend modules:
+
+```text
+backend/
+├─ server.mjs
+├─ config.mjs
+├─ database/
+│  └─ jsonDatabase.mjs
+├─ services/
+│  ├─ llmService.mjs
+│  ├─ notificationService.mjs
+│  ├─ reminderScheduler.mjs
+│  └─ scheduleService.mjs
+└─ data/
+   └─ .gitkeep
+```
+
+Main local APIs:
+
+- `POST /api/tasks`
+- `POST /api/habits/sport`
+- `POST /api/habits/github`
+- `POST /api/startup-check`
+- `GET /api/weekly-summary`
+
+The project does not use LangChain, LangGraph, or another agent framework. The backend owns deterministic scheduling, task matching, persistence, and OS notifications. The LLM module is only used for natural-language weekly comments.
+
+To enable LLM comments, set an API key in your local shell or `.env` equivalent. Do not commit secrets.
+
+```powershell
+$env:OPENAI_API_KEY="your-api-key"
+$env:OPENAI_MODEL="gpt-4.1-mini"
+npm start
+```
+
+To install the Windows startup shortcut:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-startup-agent.ps1
+```

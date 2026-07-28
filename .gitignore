@@ -6,6 +6,8 @@ build/
 .env
 .env.*
 *.log
+backend/data/*.json
+!backend/data/.gitkeep
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
