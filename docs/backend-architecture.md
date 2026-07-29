@@ -36,6 +36,7 @@ The rest of the backend talks to the database through service functions, so the 
 | `GET` | `/api/health` | Backend health check |
 | `GET` | `/api/day?date=YYYY-MM-DD` | Read one day's tasks and memos |
 | `POST` | `/api/sync/day` | Sync one day's tasks and memos from the browser |
+| `POST` | `/api/import/localstorage` | Import legacy `file://` localStorage days into the backend database |
 | `POST` | `/api/tasks` | Create a schedule task through the backend API |
 | `POST` | `/api/habits/sport` | Record whether today's sport habit is complete |
 | `POST` | `/api/habits/github` | Record GitHub commit/maintenance status |

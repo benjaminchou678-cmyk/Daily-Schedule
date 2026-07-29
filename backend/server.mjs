@@ -5,7 +5,7 @@ import { extname, join, normalize, resolve } from "node:path";
 import { port, publicDir, srcDir } from "./config.mjs";
 import { notifyDesktop } from "./services/notificationService.mjs";
 import { generateWeeklyComment } from "./services/llmService.mjs";
-import { createTask, getDay, recordGithubMaintenance, recordSportStatus, summarizeWeek, upsertDay } from "./services/scheduleService.mjs";
+import { createTask, getDay, importLocalStorageDump, recordGithubMaintenance, recordSportStatus, summarizeWeek, upsertDay } from "./services/scheduleService.mjs";
 import { notifyDailySummaryReminder, runStartupRoutine, scheduleImportantReminders } from "./services/reminderScheduler.mjs";
 
 const DEFAULT_NOTIFICATION_TITLE = "\u65e5\u7a0b\u63d0\u9192";
@@ -37,7 +37,10 @@ async function readBody(request) {
 function sendJson(response, status, body) {
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type"
   });
   response.end(JSON.stringify(body));
 }
@@ -52,6 +55,11 @@ async function sendFile(response, filePath) {
 }
 
 async function handleApi(request, response, url) {
+  if (request.method === "OPTIONS") {
+    sendJson(response, 204, {});
+    return true;
+  }
+
   if (request.method === "GET" && url.pathname === "/api/health") {
     sendJson(response, 200, { ok: true });
     return true;
@@ -76,6 +84,13 @@ async function handleApi(request, response, url) {
     const day = await upsertDay(body.date, body);
     scheduleImportantReminders(body.date, day.tasks);
     sendJson(response, 200, { ok: true, day });
+    return true;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/import/localstorage") {
+    const body = await readBody(request);
+    const imported = await importLocalStorageDump(body);
+    sendJson(response, 200, { ok: true, imported });
     return true;
   }
 

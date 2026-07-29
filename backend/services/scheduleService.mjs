@@ -23,6 +23,29 @@ export async function upsertDay(date, payload) {
   return day;
 }
 
+export async function importLocalStorageDump(payload) {
+  const imported = [];
+  const days = payload && typeof payload.days === "object" ? payload.days : {};
+
+  await db.update((data) => {
+    for (const [date, day] of Object.entries(days)) {
+      const existing = data.days[date] || { tasks: [], memos: [] };
+      const mergedTasks = mergeById(existing.tasks || [], Array.isArray(day.tasks) ? day.tasks.map(normalizeTask) : []);
+      const mergedMemos = mergeById(existing.memos || [], Array.isArray(day.memos) ? day.memos : []);
+      data.days[date] = {
+        ...existing,
+        tasks: mergedTasks,
+        memos: mergedMemos,
+        updatedAt: new Date().toISOString()
+      };
+      imported.push({ date, tasks: mergedTasks.length, memos: mergedMemos.length });
+    }
+    return imported;
+  });
+
+  return imported;
+}
+
 export async function createTask(date, values) {
   return db.update((data) => {
     const day = data.days[date] || { tasks: [], memos: [] };
@@ -174,6 +197,13 @@ function normalizeTask(task) {
     done: Boolean(task.done),
     important: isImportantTask(task)
   };
+}
+
+function mergeById(existing, incoming) {
+  const map = new Map();
+  existing.forEach((item, index) => map.set(item.id || `existing-${index}`, item));
+  incoming.forEach((item, index) => map.set(item.id || `incoming-${Date.now()}-${index}`, item));
+  return [...map.values()];
 }
 
 function createId() {

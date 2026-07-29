@@ -1,6 +1,6 @@
 # 个人日程表
 
-一个本地运行的个人日程计划网页，支持日程新增、编辑、完成、删除、时间线拖拽、月度/年度汇总和历史日期回看。项目使用原生 HTML、CSS、JavaScript 编写，不需要后端服务或数据库，数据保存在浏览器 `localStorage` 中。
+一个本地运行的个人日程计划网页，支持日程新增、编辑、完成、删除、时间线拖拽、月度/年度汇总、历史日期回看、桌面提醒和本地助手服务。项目使用原生 HTML、CSS、JavaScript 编写，主运行方式为本地 Node.js 后端 + JSON 文件数据库；前端仍保留 `localStorage` 离线回退能力。
 
 ## 功能
 
@@ -72,13 +72,40 @@ npm run check
 
 ## 数据说明
 
-日程数据保存在浏览器 `localStorage` 中，键名格式为：
+正常运行 `npm start` 后，日程数据会同步保存在本地 JSON 数据库：
+
+```text
+backend/data/daily-schedule.db.json
+```
+
+该文件包含个人日程、备忘录和习惯状态，已被 `.gitignore` 排除，不会上传到 GitHub。
+
+前端仍保留浏览器 `localStorage` 离线回退，键名格式为：
 
 ```text
 daily-schedule:YYYY-MM-DD
+daily-memos:YYYY-MM-DD
 ```
 
-同一个浏览器、同一个访问地址下可以回看历史数据。清理浏览器站点数据会删除这些本地日程。
+同一个浏览器、同一个访问地址下可以回看历史数据。清理浏览器站点数据会删除离线模式下的本地日程。
+
+如果旧桌面快捷方式曾经打开 `file://.../schedule.html` 或 `file://.../src/index.html`，那一份 `localStorage` 会与 `http://127.0.0.1:5173/` 的数据隔离。可先启动后端：
+
+```powershell
+npm start
+```
+
+再用 Edge 打开项目里的迁移页面：
+
+```text
+src/migrate-localstorage.html
+```
+
+点击“开始迁移”后，旧 `file://` 数据会导入到当前后端数据库。桌面快捷方式建议统一指向：
+
+```text
+http://127.0.0.1:5173/
+```
 
 ## 上传 GitHub
 
@@ -136,6 +163,7 @@ Main local APIs:
 - `POST /api/tasks`
 - `POST /api/habits/sport`
 - `POST /api/habits/github`
+- `POST /api/import/localstorage`
 - `POST /api/startup-check`
 - `GET /api/weekly-summary`
 
