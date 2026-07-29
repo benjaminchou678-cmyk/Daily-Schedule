@@ -1093,10 +1093,40 @@
     init();
 
     async function init() {
+      applyLaunchDate();
       renderHours();
       await hydrateSelectedDateFromBackend();
       saveTasks();
       render();
+      handleLaunchAction();
+    }
+
+    function applyLaunchDate() {
+      const params = new URLSearchParams(window.location.search);
+      const date = params.get("date");
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+      selectedDateKey = date;
+      tasks = migrateTasks(loadTasks(selectedDateKey));
+      memos = loadMemos(selectedDateKey);
+      lastAllDoneKey = allTasksDone() ? selectedDateKey : "";
+      monthPicker.value = selectedDateKey.slice(0, 7);
+      yearPicker.value = selectedDateKey.slice(0, 4);
+    }
+
+    function handleLaunchAction() {
+      const params = new URLSearchParams(window.location.search);
+      const action = params.get("action");
+      if (action === "new-task") {
+        const start = parseTime(params.get("time")) ?? 9 * 60;
+        openModal(null, start);
+        modalTaskTitle.value = params.get("title") || "";
+        modalNote.value = params.get("note") || params.get("category") || "";
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+      if (action === "memo") {
+        openMemoModal();
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
 
     function keyFor(dateKey) {

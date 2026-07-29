@@ -1,5 +1,6 @@
 import { generateWeeklyComment } from "./llmService.mjs";
-import { notifyDesktop } from "./notificationService.mjs";
+import { notifyDesktop, showChoicePrompt } from "./notificationService.mjs";
+import { appUrl } from "../config.mjs";
 import { formatDate, getAgentState, getDay, isSportTask, patchAgentState, summarizeWeek } from "./scheduleService.mjs";
 
 const importantTimers = new Map();
@@ -29,8 +30,12 @@ export async function runStartupRoutine(date = new Date()) {
   const sportTask = tasks.find(isSportTask);
 
   if (!state.startupShown) {
-    notifyDesktop(MESSAGES.sportTitle, sportTask ? MESSAGES.sportFound(sportTask.title) : MESSAGES.sportMissing);
-    notifyDesktop(MESSAGES.importantTitle, MESSAGES.importantBody);
+    notifyDesktop(MESSAGES.sportTitle, sportTask ? MESSAGES.sportFound(sportTask.title) : MESSAGES.sportMissing, {
+      clickUrl: buildTaskUrl({ date: dateKey, category: "sport", title: sportTask?.title || "体育运动", time: sportTask?.time || "18:00", note: "体育运动" })
+    });
+    notifyDesktop(MESSAGES.importantTitle, MESSAGES.importantBody, {
+      clickUrl: buildTaskUrl({ date: dateKey, category: "important", title: "重要事项", time: nextQuarterHour(), note: "重要事项" })
+    });
     notifyDesktop(MESSAGES.githubTitle, MESSAGES.githubBody);
     await patchAgentState(dateKey, { startupShown: true });
   }
@@ -72,17 +77,31 @@ export function scheduleImportantReminders(dateKey, tasks) {
     if (delay <= 0) return;
 
     const timer = setTimeout(() => {
-      notifyDesktop(MESSAGES.importantReminderTitle, `${task.title}\n${taskTime} \u5f00\u59cb`);
+      notifyDesktop(MESSAGES.importantReminderTitle, `${task.title}\n${taskTime} \u5f00\u59cb`, {
+        clickUrl: `${appUrl}/?date=${encodeURIComponent(dateKey)}`
+      });
       importantTimers.delete(key);
     }, delay);
     importantTimers.set(key, timer);
   });
 }
 
-export async function notifyDailySummaryReminder(dateKey = formatDate(new Date())) {
+export async function notifyDailySummaryReminder(dateKey = formatDate(new Date()), now = new Date()) {
+  const hour = now.getHours();
+  if (hour < 20) return false;
   const day = await getDay(dateKey);
-  if ((day.memos || []).length) return false;
-  notifyDesktop(MESSAGES.summaryTitle, MESSAGES.summaryBody);
+  const hasOpenTasks = (day.tasks || []).some((task) => !task.done);
+  const missingSummary = !(day.memos || []).length;
+  if (!hasOpenTasks && !missingSummary) return false;
+  const detail = [
+    hasOpenTasks ? "今天还有未完成事项。" : "",
+    missingSummary ? "今天还没有每日总结。" : "",
+    "请选择填写、稍后提醒或退出。"
+  ].filter(Boolean).join(" ");
+  showChoicePrompt(MESSAGES.summaryTitle, detail || MESSAGES.summaryBody, {
+    fillUrl: `${appUrl}/?date=${encodeURIComponent(dateKey)}&action=memo`,
+    laterMessage: MESSAGES.summaryBody
+  });
   return true;
 }
 
@@ -90,4 +109,22 @@ function minutesToTime(minutes = 0) {
   const hour = Math.floor(minutes / 60);
   const minute = minutes % 60;
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function buildTaskUrl(values) {
+  const params = new URLSearchParams({
+    action: "new-task",
+    date: values.date,
+    category: values.category,
+    title: values.title,
+    time: values.time,
+    note: values.note
+  });
+  return `${appUrl}/?${params.toString()}`;
+}
+
+function nextQuarterHour() {
+  const now = new Date();
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  return minutesToTime(Math.min(23 * 60 + 45, Math.ceil(minutes / 15) * 15));
 }

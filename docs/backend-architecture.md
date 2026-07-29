@@ -10,6 +10,7 @@ This project keeps the existing schedule website as the UI, and adds a local bac
 - Backend entry: `backend/server.mjs`
 - Local URL: `http://127.0.0.1:5173`
 - Startup launcher: `scripts/start-daily-schedule-agent.ps1`
+- Frontend opener: `scripts/open-daily-schedule-site.ps1`
 - Startup shortcut installer: `scripts/install-startup-agent.ps1`
 
 ## Database
@@ -61,14 +62,27 @@ The backend owns deterministic decisions such as:
 - Important tasks are scheduled by start time when the page syncs data to the backend.
 - Saturday startup shows the creation-day reminder.
 - Sunday startup sends a weekly summary for last Sunday through this Saturday.
+- Closing the website after 20:00 sends a backend event; the backend checks whether there are open tasks or no daily memo before showing a desktop prompt.
 
-The reminder scheduler uses normal JavaScript timers while the backend process is running. Windows startup launches the backend automatically.
+The reminder scheduler uses normal JavaScript timers while the backend process is running. Windows startup launches the backend automatically. Backend startup and frontend opening are decoupled: `start-daily-schedule-agent.ps1` starts the backend immediately, then delegates website opening to `open-daily-schedule-site.ps1`.
+
+Startup timings are written to:
+
+```text
+backend/logs/startup.log
+```
 
 ## Desktop Notifications
 
 `backend/services/notificationService.mjs` uses PowerShell and `System.Windows.Forms.NotifyIcon` to show Windows desktop balloon notifications near the system tray.
 
-This is intentionally OS-level rather than an in-page modal. The current implementation sends reminders but does not add native action buttons inside the toast. User edits and confirmations still happen in the website.
+This is intentionally OS-level rather than an in-page modal. Sport and important-task reminders include a click target that opens the original website URL with query parameters, then the frontend opens the existing task modal and pre-fills date, time, and category text.
+
+The shutdown reminder uses a small desktop prompt in the lower-right corner with three choices:
+
+- Fill: opens the website memo editor.
+- Remind later: shows another reminder later.
+- Exit: closes the prompt.
 
 ## LLM Module
 

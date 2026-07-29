@@ -154,3 +154,12 @@ To install the Windows startup shortcut:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-startup-agent.ps1
 ```
+
+Startup behavior:
+
+- `scripts/start-daily-schedule-agent.ps1` starts the backend reminder service immediately.
+- `scripts/open-daily-schedule-site.ps1` opens the original site address after the backend is ready.
+- The original address remains `http://127.0.0.1:5173`.
+- Startup timing is written to `backend/logs/startup.log`.
+- Reminder balloons can be clicked to open the existing schedule page and pre-fill the original add-task modal.
+- Closing the site only triggers the summary prompt after 20:00, and only when the backend finds open tasks or no daily memo.

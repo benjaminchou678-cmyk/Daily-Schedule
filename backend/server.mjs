@@ -9,6 +9,7 @@ import { createTask, getDay, recordGithubMaintenance, recordSportStatus, summari
 import { notifyDailySummaryReminder, runStartupRoutine, scheduleImportantReminders } from "./services/reminderScheduler.mjs";
 
 const DEFAULT_NOTIFICATION_TITLE = "\u65e5\u7a0b\u63d0\u9192";
+const serverStartedAt = Date.now();
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -122,7 +123,7 @@ async function handleApi(request, response, url) {
 
   if (request.method === "POST" && url.pathname === "/api/notifications/daily-summary-reminder") {
     const body = await readBody(request);
-    const notified = await notifyDailySummaryReminder(body.date);
+    const notified = await notifyDailySummaryReminder(body.date, body.now ? new Date(body.now) : new Date());
     sendJson(response, 200, { ok: true, notified });
     return true;
   }
@@ -169,6 +170,6 @@ createServer(async (request, response) => {
     sendJson(response, 500, { error: error instanceof Error ? error.message : "Server error" });
   }
 }).listen(port, () => {
-  console.log(`Daily Schedule backend is running at http://localhost:${port}`);
+  console.log(`Daily Schedule backend is running at http://localhost:${port} in ${Date.now() - serverStartedAt}ms`);
   runStartupRoutine(new Date()).catch(() => {});
 });
