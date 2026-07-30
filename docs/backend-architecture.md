@@ -34,6 +34,7 @@ The rest of the backend talks to the database through service functions, so the 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | Backend health check |
+| `GET` | `/api/startup-status` | Read backend startup timing and background initialization state |
 | `GET` | `/api/day?date=YYYY-MM-DD` | Read one day's tasks and memos |
 | `POST` | `/api/sync/day` | Sync one day's tasks and memos from the browser |
 | `POST` | `/api/import/localstorage` | Import legacy `file://` localStorage days into the backend database |
@@ -65,13 +66,17 @@ The backend owns deterministic decisions such as:
 - Sunday startup sends a weekly summary for last Sunday through this Saturday.
 - Closing the website after 20:00 sends a backend event; the backend checks whether there are open tasks or no daily memo before showing a desktop prompt.
 
-The reminder scheduler uses normal JavaScript timers while the backend process is running. Windows startup launches the backend automatically. Backend startup and frontend opening are decoupled: `start-daily-schedule-agent.ps1` starts the backend immediately, then delegates website opening to `open-daily-schedule-site.ps1`.
+The reminder scheduler uses normal JavaScript timers while the backend process is running. Windows startup launches the backend automatically. Backend startup and frontend opening are decoupled: `start-daily-schedule-agent.ps1` starts or reuses the backend process immediately, then delegates website opening to `open-daily-schedule-site.ps1`.
+
+The backend calls `listen()` before running startup reminders. Non-core startup work is queued in the background, and failures are logged without stopping the HTTP server. The opener checks `/api/health` once: if the backend is ready it opens `http://127.0.0.1:5173`; otherwise it opens `schedule.html`, a lightweight bootstrap page that polls the health endpoint and redirects when ready.
 
 Startup timings are written to:
 
 ```text
 backend/logs/startup.log
 ```
+
+The log records startup time, listen time, background routine duration, and startup errors. It must not include API keys or personal schedule content.
 
 ## Desktop Notifications
 

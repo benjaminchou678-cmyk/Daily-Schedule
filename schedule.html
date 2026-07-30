@@ -3,10 +3,93 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="0; url=src/index.html">
   <title>打开个人日程表</title>
+  <style>
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #eff8ff 0%, #fff3fa 52%, #eef7ff 100%);
+      color: #26303a;
+      font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(420px, calc(100% - 32px));
+      padding: 22px;
+      border: 1px solid rgba(159, 215, 255, 0.45);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 14px 40px rgba(38, 48, 58, 0.1);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 20px;
+    }
+
+    p {
+      margin: 0 0 16px;
+      color: #73808c;
+      line-height: 1.6;
+    }
+
+    button, a {
+      display: inline-block;
+      border: 0;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #4f9fd7, #78bff0);
+      color: #fff;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      padding: 9px 12px;
+      text-decoration: none;
+    }
+  </style>
 </head>
 <body>
-  <p>正在打开个人日程表。如果没有自动跳转，请打开 <a href="src/index.html">src/index.html</a>。</p>
+  <main>
+    <h1>正在启动个人日程表</h1>
+    <p id="status">正在连接本地服务...</p>
+    <button id="retryButton" type="button" hidden>重新连接</button>
+    <a id="openLink" href="http://127.0.0.1:5173/" hidden>直接打开</a>
+  </main>
+
+  <script>
+    const appUrl = "http://127.0.0.1:5173/";
+    const status = document.querySelector("#status");
+    const retryButton = document.querySelector("#retryButton");
+    const openLink = document.querySelector("#openLink");
+
+    async function wait(milliseconds) {
+      return new Promise((resolve) => setTimeout(resolve, milliseconds));
+    }
+
+    async function connect(maxAttempts = 12) {
+      retryButton.hidden = true;
+      openLink.hidden = true;
+      status.textContent = "正在连接本地服务...";
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          const response = await fetch(`${appUrl}api/health`, { cache: "no-store" });
+          if (response.ok) {
+            window.location.replace(appUrl);
+            return;
+          }
+        } catch {
+          // Keep the local bootstrap page responsive while the backend starts.
+        }
+        await wait(Math.min(300 + attempt * 120, 900));
+      }
+      status.textContent = "本地服务暂时没有响应，请确认后台服务已启动。";
+      retryButton.hidden = false;
+      openLink.hidden = false;
+    }
+
+    retryButton.addEventListener("click", () => connect());
+    connect();
+  </script>
 </body>
 </html>

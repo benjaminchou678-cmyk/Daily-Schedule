@@ -18,22 +18,14 @@ function Write-StartupLog {
 
 function Test-ScheduleServer {
   try {
-    $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 1
+    $response = Invoke-WebRequest -Uri "$url/api/health" -UseBasicParsing -TimeoutSec 1
     return $response.StatusCode -eq 200
   } catch {
     return $false
   }
 }
 
-$ready = $false
-for ($index = 0; $index -lt 30; $index += 1) {
-  if (Test-ScheduleServer) {
-    $ready = $true
-    break
-  }
-  Start-Sleep -Milliseconds 300
-}
-
+$ready = Test-ScheduleServer
 $target = if ($ready) { $url } else { $fallbackFile }
 
 if (Test-Path $edgePath) {

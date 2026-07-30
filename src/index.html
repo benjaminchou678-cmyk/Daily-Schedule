@@ -115,6 +115,33 @@
       font-size: 12px;
     }
 
+    .backend-status {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 16px;
+      padding: 10px 12px;
+      border: 1px solid rgba(159, 215, 255, 0.5);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: var(--soft-shadow);
+      color: var(--blue-ink);
+      font-size: 13px;
+    }
+
+    .backend-status.show { display: flex; }
+
+    .backend-status button {
+      border: 0;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--blue-deep), #78bff0);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 700;
+      padding: 7px 10px;
+    }
+
     .layout {
       display: grid;
       grid-template-columns: 330px minmax(0, 1fr);
@@ -875,6 +902,7 @@
 
       .topbar, .layout { display: block; }
       .summary { justify-content: flex-start; margin-top: 16px; }
+      .backend-status { align-items: flex-start; }
       .left-stack { margin-bottom: 16px; }
       .right-stack { gap: 16px; }
       .section-head { align-items: flex-start; }
@@ -897,6 +925,11 @@
         <div class="pill"><strong id="doneCount">0</strong><span>已完成</span></div>
       </div>
     </header>
+
+    <div class="backend-status" id="backendStatus" role="status" aria-live="polite">
+      <span id="backendStatusText">正在启动本地服务...</span>
+      <button id="backendRetryButton" type="button">重新连接</button>
+    </div>
 
     <section class="layout">
       <div class="left-stack">
@@ -1036,6 +1069,9 @@
     const dailyQuoteText = document.querySelector("#dailyQuoteText");
     const dailyQuoteSource = document.querySelector("#dailyQuoteSource");
     const dailyQuoteDate = document.querySelector("#dailyQuoteDate");
+    const backendStatus = document.querySelector("#backendStatus");
+    const backendStatusText = document.querySelector("#backendStatusText");
+    const backendRetryButton = document.querySelector("#backendRetryButton");
     const statusText = document.querySelector("#statusText");
     const memoStatusText = document.querySelector("#memoStatusText");
     const openMemoButton = document.querySelector("#openMemoButton");
@@ -1085,6 +1121,7 @@
     let quoteRequestId = 0;
     let lastAllDoneKey = allTasksDone() ? selectedDateKey : "";
     let startupCheckSent = false;
+    let backendReady = false;
 
     monthPicker.value = selectedDateKey.slice(0, 7);
     yearPicker.value = selectedDateKey.slice(0, 4);
@@ -1095,10 +1132,46 @@
     async function init() {
       applyLaunchDate();
       renderHours();
-      await hydrateSelectedDateFromBackend();
       saveTasks();
       render();
+      checkBackendReadiness();
       handleLaunchAction();
+    }
+
+    function showBackendStatus(message, canRetry = false) {
+      backendStatusText.textContent = message;
+      backendRetryButton.hidden = !canRetry;
+      backendStatus.classList.add("show");
+    }
+
+    function hideBackendStatus() {
+      backendStatus.classList.remove("show");
+    }
+
+    async function checkBackendReadiness(maxAttempts = 8) {
+      showBackendStatus("正在启动本地服务...", false);
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          const response = await fetch("/api/health", { cache: "no-store" });
+          if (response.ok) {
+            backendReady = true;
+            hideBackendStatus();
+            await hydrateSelectedDateFromBackend();
+            render();
+            return true;
+          }
+        } catch {
+          // The retry loop below handles startup races and offline/static mode.
+        }
+        await wait(Math.min(300 + attempt * 150, 1000));
+      }
+      backendReady = false;
+      showBackendStatus("本地服务暂时未连接，普通日程可继续使用。", true);
+      return false;
+    }
+
+    function wait(milliseconds) {
+      return new Promise((resolve) => setTimeout(resolve, milliseconds));
     }
 
     function applyLaunchDate() {
@@ -1378,6 +1451,7 @@
     }
 
     async function syncSelectedDateToBackend() {
+      if (!backendReady) return;
       try {
         const response = await fetch("/api/sync/day", {
           method: "POST",
@@ -1401,6 +1475,8 @@
           await fetch("/api/startup-check", { method: "POST" });
         }
       } catch {
+        backendReady = false;
+        showBackendStatus("本地服务连接中断，普通日程已保存在浏览器中。", true);
         // The page can still run as a localStorage-only app when the backend is not active.
       }
     }
@@ -1741,6 +1817,7 @@
 
     yearPicker.addEventListener("change", renderHistory);
     todayButton.addEventListener("click", () => switchDate(new Date().toLocaleDateString("sv-SE")));
+    backendRetryButton.addEventListener("click", () => checkBackendReadiness());
 
     timelineClickLayer.addEventListener("click", (event) => {
       if (event.target !== timelineClickLayer) return;

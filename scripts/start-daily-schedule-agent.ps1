@@ -17,23 +17,38 @@ function Write-StartupLog {
 
 function Test-ScheduleServer {
   try {
-    $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 1
+    $response = Invoke-WebRequest -Uri "$url/api/health" -UseBasicParsing -TimeoutSec 1
     return $response.StatusCode -eq 200
   } catch {
     return $false
   }
 }
 
-if (-not (Test-ScheduleServer)) {
-  $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
-  $bundledNode = Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe"
-  $nodePath = if ($nodeCommand) { $nodeCommand.Source } elseif (Test-Path $bundledNode) { $bundledNode } else { $null }
+function Get-ScheduleBackendProcess {
+  Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
+    Where-Object {
+      $_.CommandLine -and
+      $_.CommandLine -match "backend[\\/]server\.mjs" -and
+      $_.CommandLine -match [regex]::Escape($projectRoot)
+    } |
+    Select-Object -First 1
+}
 
-  if ($nodePath) {
-    Start-Process -FilePath $nodePath -ArgumentList "backend\server.mjs" -WorkingDirectory $projectRoot -WindowStyle Hidden
-    Write-StartupLog "backend_start command=$nodePath elapsed_ms=$([int]((Get-Date) - $startedAt).TotalMilliseconds)"
+if (-not (Test-ScheduleServer)) {
+  $existingProcess = Get-ScheduleBackendProcess
+  if ($existingProcess) {
+    Write-StartupLog "backend_start skipped=process_exists pid=$($existingProcess.ProcessId) elapsed_ms=$([int]((Get-Date) - $startedAt).TotalMilliseconds)"
   } else {
-    Write-StartupLog "backend_start skipped=no_node elapsed_ms=$([int]((Get-Date) - $startedAt).TotalMilliseconds)"
+    $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
+    $bundledNode = Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe"
+    $nodePath = if ($nodeCommand) { $nodeCommand.Source } elseif (Test-Path $bundledNode) { $bundledNode } else { $null }
+
+    if ($nodePath) {
+      Start-Process -FilePath $nodePath -ArgumentList "backend\server.mjs" -WorkingDirectory $projectRoot -WindowStyle Hidden
+      Write-StartupLog "backend_start command=$nodePath elapsed_ms=$([int]((Get-Date) - $startedAt).TotalMilliseconds)"
+    } else {
+      Write-StartupLog "backend_start skipped=no_node elapsed_ms=$([int]((Get-Date) - $startedAt).TotalMilliseconds)"
+    }
   }
 } else {
   Write-StartupLog "backend_start skipped=already_running elapsed_ms=$([int]((Get-Date) - $startedAt).TotalMilliseconds)"
