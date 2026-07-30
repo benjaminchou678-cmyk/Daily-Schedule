@@ -1,8 +1,8 @@
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
-import { port, publicDir, srcDir } from "./config.mjs";
+import { logsDir, port, publicDir, srcDir } from "./config.mjs";
 import { notifyDesktop } from "./services/notificationService.mjs";
 import { generateWeeklyComment } from "./services/llmService.mjs";
 import { createTask, getDay, importLocalStorageDump, recordGithubMaintenance, recordSportStatus, summarizeWeek, upsertDay } from "./services/scheduleService.mjs";
@@ -10,6 +10,14 @@ import { notifyDailySummaryReminder, runStartupRoutine, scheduleImportantReminde
 
 const DEFAULT_NOTIFICATION_TITLE = "\u65e5\u7a0b\u63d0\u9192";
 const serverStartedAt = Date.now();
+const startupState = {
+  startedAt: new Date(serverStartedAt).toISOString(),
+  listenMs: null,
+  coreReady: false,
+  startupRoutine: "pending",
+  startupRoutineMs: null,
+  errors: []
+};
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -32,6 +40,21 @@ async function readBody(request) {
   for await (const chunk of request) chunks.push(chunk);
   const raw = Buffer.concat(chunks).toString("utf8");
   return raw ? JSON.parse(raw) : {};
+}
+
+async function writeStartupLog(message, extra = {}) {
+  try {
+    await mkdir(logsDir, { recursive: true });
+    const entry = {
+      time: new Date().toISOString(),
+      message,
+      elapsedMs: Date.now() - serverStartedAt,
+      ...extra
+    };
+    await appendFile(join(logsDir, "startup.log"), `${JSON.stringify(entry)}\n`, "utf8");
+  } catch {
+    // Startup logging must never block the local app.
+  }
 }
 
 function sendJson(response, status, body) {
@@ -61,7 +84,12 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/health") {
-    sendJson(response, 200, { ok: true });
+    sendJson(response, 200, { ok: true, status: startupState });
+    return true;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/startup-status") {
+    sendJson(response, 200, { ok: true, status: startupState });
     return true;
   }
 
@@ -131,8 +159,8 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/startup-check") {
-    await runStartupRoutine(new Date());
-    sendJson(response, 200, { ok: true });
+    const queued = queueStartupRoutine("api");
+    sendJson(response, queued ? 202 : 200, { ok: true, queued, startupRoutine: startupState.startupRoutine, status: startupState });
     return true;
   }
 
@@ -185,6 +213,30 @@ createServer(async (request, response) => {
     sendJson(response, 500, { error: error instanceof Error ? error.message : "Server error" });
   }
 }).listen(port, () => {
-  console.log(`Daily Schedule backend is running at http://localhost:${port} in ${Date.now() - serverStartedAt}ms`);
-  runStartupRoutine(new Date()).catch(() => {});
+  startupState.listenMs = Date.now() - serverStartedAt;
+  startupState.coreReady = true;
+  console.log(`Daily Schedule backend is running at http://localhost:${port} in ${startupState.listenMs}ms`);
+  writeStartupLog("listen", { listenMs: startupState.listenMs });
+  setTimeout(() => queueStartupRoutine("listen"), 0);
 });
+
+function queueStartupRoutine(source) {
+  if (startupState.startupRoutine === "running" || startupState.startupRoutine === "done") return false;
+  startupState.startupRoutine = "running";
+  const startedAt = Date.now();
+  writeStartupLog("startup_routine_start", { source });
+  runStartupRoutine(new Date())
+    .then(() => {
+      startupState.startupRoutine = "done";
+      startupState.startupRoutineMs = Date.now() - startedAt;
+      writeStartupLog("startup_routine_done", { source, durationMs: startupState.startupRoutineMs });
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : "startup routine failed";
+      startupState.startupRoutine = "failed";
+      startupState.startupRoutineMs = Date.now() - startedAt;
+      startupState.errors.push({ module: "startupRoutine", message, time: new Date().toISOString() });
+      writeStartupLog("startup_routine_error", { source, durationMs: startupState.startupRoutineMs, error: message });
+    });
+  return true;
+}

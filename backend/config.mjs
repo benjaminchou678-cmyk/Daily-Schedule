@@ -4,6 +4,7 @@ export const rootDir = resolve(import.meta.dirname, "..");
 export const srcDir = resolve(rootDir, "src");
 export const publicDir = resolve(rootDir, "public");
 export const dataDir = resolve(rootDir, "backend", "data");
+export const logsDir = resolve(rootDir, "backend", "logs");
 export const databasePath = resolve(dataDir, "daily-schedule.db.json");
 
 export const port = Number(process.env.PORT || 5173);
