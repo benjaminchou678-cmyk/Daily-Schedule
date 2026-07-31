@@ -1,4 +1,5 @@
 import { db } from "../database/jsonDatabase.mjs";
+import { formatDate } from "./timeService.mjs";
 
 const DEFAULT_TASK_TITLE = "\u672a\u547d\u540d\u65e5\u7a0b";
 const SPORT_TASK_TITLE = "\u4f53\u80b2\u8fd0\u52a8";
@@ -167,10 +168,6 @@ export async function summarizeWeek(today = new Date()) {
     unfinishedTitles,
     days
   };
-}
-
-export function formatDate(date) {
-  return date.toLocaleDateString("sv-SE");
 }
 
 export function addDays(date, offset) {

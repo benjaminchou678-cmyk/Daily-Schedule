@@ -25,10 +25,32 @@ function Test-ScheduleServer {
   }
 }
 
-$ready = Test-ScheduleServer
+function Test-ScheduleEdgeApp {
+  Get-CimInstance Win32_Process -Filter "Name = 'msedge.exe'" -ErrorAction SilentlyContinue |
+    Where-Object {
+      $_.CommandLine -and (
+        $_.CommandLine -match "--app=$([regex]::Escape($url))" -or
+        $_.CommandLine -match [regex]::Escape($fallbackFile)
+      )
+    } |
+    Select-Object -First 1
+}
+
+$ready = $false
+$deadline = (Get-Date).AddSeconds(5)
+while ((Get-Date) -lt $deadline) {
+  if (Test-ScheduleServer) {
+    $ready = $true
+    break
+  }
+  Start-Sleep -Milliseconds 250
+}
+
 $target = if ($ready) { $url } else { $fallbackFile }
 
-if (Test-Path $edgePath) {
+if (Test-ScheduleEdgeApp) {
+  Write-StartupLog "frontend_open skipped=edge_exists ready=$ready elapsed_ms=$([int]((Get-Date) - $startedAt).TotalMilliseconds)"
+} elseif (Test-Path $edgePath) {
   Start-Process -FilePath $edgePath -ArgumentList "--app=$target"
 } else {
   Start-Process $target

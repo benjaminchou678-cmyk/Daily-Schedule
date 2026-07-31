@@ -166,6 +166,9 @@ Main local APIs:
 - `POST /api/habits/sport`
 - `POST /api/habits/github`
 - `POST /api/import/localstorage`
+- `GET /api/reminders/daily`
+- `POST /api/reminders/daily/complete`
+- `POST /api/session/heartbeat`
 - `POST /api/startup-check`
 - `GET /api/weekly-summary`
 
@@ -192,5 +195,7 @@ Startup behavior:
 - The original address remains `http://127.0.0.1:5173`.
 - Startup timing is written to `backend/logs/startup.log`.
 - The backend calls `listen()` first, then runs startup reminders in the background.
+- Daily in-page reminders for sport, important schedules, and GitHub maintenance run through a frontend Promise queue, so only one reminder appears at a time.
+- The browser sends a heartbeat every 5 seconds; the backend session monitor handles close detection and the after-20:00 daily summary prompt.
 - Reminder balloons can be clicked to open the existing schedule page and pre-fill the original add-task modal.
 - Closing the site only triggers the summary prompt after 20:00, and only when the backend finds open tasks or no daily memo.

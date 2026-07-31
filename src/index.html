@@ -894,6 +894,22 @@
 
     .modal-actions.with-delete { grid-template-columns: 1fr 1fr 1fr; }
 
+    .daily-reminder {
+      max-width: 380px;
+    }
+
+    .daily-reminder p {
+      margin: 0 0 18px;
+      color: var(--ink);
+      line-height: 1.7;
+    }
+
+    .daily-reminder-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
     @media (max-width: 900px) {
       .app {
         width: min(100% - 22px, 1220px);
@@ -1049,6 +1065,19 @@
       </div>
     </form>
   </div>
+  <div class="modal-backdrop" id="dailyReminderBackdrop" role="dialog" aria-modal="true" aria-labelledby="dailyReminderTitle">
+    <div class="modal daily-reminder">
+      <div class="modal-head">
+        <h2 id="dailyReminderTitle">每日提醒</h2>
+        <button class="close-btn" id="dailyReminderClose" type="button" aria-label="关闭">×</button>
+      </div>
+      <p id="dailyReminderText">今天有重要日程需要记录吗？</p>
+      <div class="daily-reminder-actions">
+        <button class="primary" id="dailyReminderYes" type="button">有</button>
+        <button class="secondary" id="dailyReminderNo" type="button">无</button>
+      </div>
+    </div>
+  </div>
   <div class="timeline-tooltip" id="timelineTooltip" role="tooltip"></div>
   <div class="celebration" id="celebration" aria-live="polite"></div>
 
@@ -1113,6 +1142,12 @@
     const closeMemoModal = document.querySelector("#closeMemoModal");
     const clearMemoButton = document.querySelector("#clearMemoButton");
     const celebration = document.querySelector("#celebration");
+    const dailyReminderBackdrop = document.querySelector("#dailyReminderBackdrop");
+    const dailyReminderTitle = document.querySelector("#dailyReminderTitle");
+    const dailyReminderText = document.querySelector("#dailyReminderText");
+    const dailyReminderYes = document.querySelector("#dailyReminderYes");
+    const dailyReminderNo = document.querySelector("#dailyReminderNo");
+    const dailyReminderClose = document.querySelector("#dailyReminderClose");
 
     let selectedDateKey = new Date().toLocaleDateString("sv-SE");
     let tasks = migrateTasks(loadTasks(selectedDateKey));
@@ -1120,8 +1155,12 @@
     let activePointer = null;
     let quoteRequestId = 0;
     let lastAllDoneKey = allTasksDone() ? selectedDateKey : "";
-    let startupCheckSent = false;
     let backendReady = false;
+    let reminderQueue = Promise.resolve();
+    let taskModalResolver = null;
+    const sessionId = getSessionId();
+    let heartbeatTimer = null;
+    let dailyReminderQueueStarted = false;
 
     monthPicker.value = selectedDateKey.slice(0, 7);
     yearPicker.value = selectedDateKey.slice(0, 4);
@@ -1158,6 +1197,8 @@
             hideBackendStatus();
             await hydrateSelectedDateFromBackend();
             render();
+            startSessionHeartbeat();
+            runDailyReminderQueue();
             return true;
           }
         } catch {
@@ -1172,6 +1213,212 @@
 
     function wait(milliseconds) {
       return new Promise((resolve) => setTimeout(resolve, milliseconds));
+    }
+
+    function withTimeout(promise, milliseconds, fallback) {
+      let timer = null;
+      const timeout = new Promise((resolve) => {
+        timer = setTimeout(() => resolve(fallback), milliseconds);
+      });
+      return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+    }
+
+    function getSessionId() {
+      const key = "daily-schedule-session-id";
+      const existing = sessionStorage.getItem(key);
+      if (existing) return existing;
+      const next = createId();
+      sessionStorage.setItem(key, next);
+      return next;
+    }
+
+    function startSessionHeartbeat() {
+      if (heartbeatTimer || !backendReady) return;
+      sendSessionHeartbeat();
+      heartbeatTimer = setInterval(sendSessionHeartbeat, 5000);
+    }
+
+    async function sendSessionHeartbeat() {
+      if (!backendReady) return;
+      try {
+        await fetch("/api/session/heartbeat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            date: selectedDateKey,
+            visibility: document.visibilityState
+          })
+        });
+      } catch {
+        backendReady = false;
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+        showBackendStatus("本地服务连接中断，普通日程已保存在浏览器中。", true);
+      }
+    }
+
+    async function runDailyReminderQueue() {
+      if (!backendReady || dailyReminderQueueStarted) return;
+      dailyReminderQueueStarted = true;
+      try {
+        const response = await fetch(`/api/reminders/daily?date=${encodeURIComponent(selectedDateKey)}`, { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        for (const reminder of data.reminders || []) {
+          enqueueReminder(async () => {
+            const result = await withTimeout(handleDailyReminder(reminder), 120000, "timeout");
+            if (result === "timeout") {
+              dailyReminderBackdrop.classList.remove("open");
+              if (taskModalResolver) {
+                const resolver = taskModalResolver;
+                taskModalResolver = null;
+                resolver("closed");
+              }
+              await completeDailyReminder(reminder.key, "closed");
+            }
+            return result;
+          });
+        }
+      } catch {
+        // Daily reminders should never block the normal schedule page.
+        dailyReminderQueueStarted = false;
+      }
+    }
+
+    function enqueueReminder(task) {
+      reminderQueue = reminderQueue
+        .then(task)
+        .catch(() => "error");
+      return reminderQueue;
+    }
+
+    async function handleDailyReminder(reminder) {
+      if (reminder.type === "sport-habit") {
+        const choice = await showDailyChoice({
+          title: "每日运动确认",
+          text: "今天的体育运动完成了吗？",
+          yes: "完成了",
+          no: "还没有"
+        });
+        if (choice === "yes") {
+          await recordSportReminderDone();
+          await completeDailyReminder(reminder.key, "done");
+          return choice;
+        }
+        if (choice === "no") {
+          const result = await openSportTaskFromReminder();
+          await completeDailyReminder(reminder.key, result === "saved" ? "done" : "closed");
+          return result;
+        }
+        await completeDailyReminder(reminder.key, "closed");
+        return choice;
+      }
+
+      if (reminder.type === "important-schedule") {
+        const choice = await showDailyChoice({
+          title: "重要日程确认",
+          text: "今天有重要日程需要记录吗？",
+          yes: "有",
+          no: "无"
+        });
+        if (choice === "yes") {
+          const result = await openImportantTaskFromReminder();
+          await completeDailyReminder(reminder.key, result === "saved" ? "done" : "closed");
+          return result;
+        }
+        await completeDailyReminder(reminder.key, choice === "no" ? "skipped" : "closed");
+        return choice;
+      }
+
+      if (reminder.type === "github-maintenance") {
+        const choice = await showDailyChoice({
+          title: "GitHub 维护提醒",
+          text: reminder.text,
+          yes: "知道了",
+          no: "跳过"
+        });
+        await completeDailyReminder(reminder.key, choice === "yes" ? "done" : "skipped");
+        return choice;
+      }
+
+      return "skipped";
+    }
+
+    async function recordSportReminderDone() {
+      if (!backendReady) return;
+      try {
+        await fetch("/api/habits/sport", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date: selectedDateKey,
+            done: true,
+            create: false
+          })
+        });
+      } catch {
+        // The reminder state still advances so the queue does not get stuck.
+      }
+    }
+
+    async function completeDailyReminder(key, status) {
+      if (!backendReady) return;
+      try {
+        await fetch("/api/reminders/daily/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: selectedDateKey, key, status })
+        });
+      } catch {
+        // State persistence is best-effort; the queue still keeps moving.
+      }
+    }
+
+    function showDailyChoice({ title, text, yes, no }) {
+      return new Promise((resolve) => {
+        let done = false;
+        dailyReminderTitle.textContent = title;
+        dailyReminderText.textContent = text;
+        dailyReminderYes.textContent = yes;
+        dailyReminderNo.textContent = no;
+        dailyReminderBackdrop.classList.add("open");
+
+        const finish = (value) => {
+          if (done) return;
+          done = true;
+          dailyReminderBackdrop.classList.remove("open");
+          dailyReminderYes.removeEventListener("click", onYes);
+          dailyReminderNo.removeEventListener("click", onNo);
+          dailyReminderClose.removeEventListener("click", onClose);
+          resolve(value);
+        };
+        const onYes = () => finish("yes");
+        const onNo = () => finish("no");
+        const onClose = () => finish("closed");
+
+        dailyReminderYes.addEventListener("click", onYes);
+        dailyReminderNo.addEventListener("click", onNo);
+        dailyReminderClose.addEventListener("click", onClose);
+      });
+    }
+
+    function openImportantTaskFromReminder() {
+      openModal(null, null, { blankTime: true, important: true });
+      modalTaskTitle.value = "";
+      modalNote.value = "重要事项";
+      return new Promise((resolve) => {
+        taskModalResolver = resolve;
+      });
+    }
+
+    function openSportTaskFromReminder() {
+      openModal(null, null, { blankTime: true });
+      modalTaskTitle.value = "体育运动";
+      modalNote.value = "体育运动";
+      return new Promise((resolve) => {
+        taskModalResolver = resolve;
+      });
     }
 
     function applyLaunchDate() {
@@ -1468,11 +1715,6 @@
             tasks = migrateTasks(result.day.tasks);
             localStorage.setItem(keyFor(selectedDateKey), JSON.stringify(tasks));
           }
-        }
-        const todayKey = new Date().toLocaleDateString("sv-SE");
-        if (!startupCheckSent && selectedDateKey === todayKey) {
-          startupCheckSent = true;
-          await fetch("/api/startup-check", { method: "POST" });
         }
       } catch {
         backendReady = false;
@@ -1908,15 +2150,16 @@
       render();
     }
 
-    function openModal(task, startMinutes = 9 * 60) {
+    function openModal(task, startMinutes = 9 * 60, options = {}) {
       const isEdit = Boolean(task);
       modalTitle.textContent = isEdit ? "编辑日程" : "新增日程";
       modalTaskId.value = task ? task.id : "";
-      modalTime.value = formatTime(task ? task.start : startMinutes);
+      modalTime.value = options.blankTime && !isEdit ? "" : formatTime(task ? task.start : startMinutes);
       modalDuration.value = task ? task.duration : DEFAULT_DURATION;
       modalDurationText.value = formatDuration(task ? task.duration : DEFAULT_DURATION);
       modalTaskTitle.value = task ? task.title : "";
       modalNote.value = task ? task.note : "";
+      modalForm.dataset.important = options.important ? "1" : "";
       modalDoneToggle.textContent = task && task.done ? "取消完成" : "标记完成";
       modalDoneToggle.style.display = isEdit ? "block" : "none";
       modalDelete.style.display = isEdit ? "block" : "none";
@@ -1928,6 +2171,11 @@
     function closeTaskModal() {
       modalBackdrop.classList.remove("open");
       modalForm.reset();
+      modalForm.dataset.important = "";
+      if (taskModalResolver) {
+        taskModalResolver("cancelled");
+        taskModalResolver = null;
+      }
     }
 
     function openMemoModal() {
@@ -1946,7 +2194,14 @@
       const title = modalTaskTitle.value.trim();
       if (!title) return;
 
-      const start = clampMinutes(parseTime(modalTime.value) ?? 9 * 60);
+      const parsedStart = parseTime(modalTime.value);
+      if (parsedStart === null) {
+        modalTime.setCustomValidity("请选择开始时间");
+        modalTime.reportValidity();
+        return;
+      }
+      modalTime.setCustomValidity("");
+      const start = clampMinutes(parsedStart);
       const taskDuration = clampDuration(parseDuration(modalDurationText.value), start);
       const id = modalTaskId.value;
       const note = modalNote.value.trim();
@@ -1966,13 +2221,17 @@
           title,
           note,
           time: formatTime(start),
-          duration: taskDuration
+          duration: taskDuration,
+          important: modalForm.dataset.important === "1"
         }));
       }
 
       saveTasks();
+      const resolver = taskModalResolver;
+      taskModalResolver = null;
       closeTaskModal();
       render();
+      if (resolver) resolver("saved");
     });
 
     openMemoButton.addEventListener("click", openMemoModal);
@@ -2021,13 +2280,17 @@
     window.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && modalBackdrop.classList.contains("open")) closeTaskModal();
       if (event.key === "Escape" && memoBackdrop.classList.contains("open")) closeMemoModalPanel();
+      if (event.key === "Escape" && dailyReminderBackdrop.classList.contains("open")) dailyReminderClose.click();
     });
-    window.addEventListener("beforeunload", (event) => {
-      const todayKey = new Date().toLocaleDateString("sv-SE");
-      if (selectedDateKey !== todayKey) return;
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon("/api/notifications/daily-summary-reminder", JSON.stringify({ date: selectedDateKey }));
-      }
+    document.addEventListener("visibilitychange", sendSessionHeartbeat);
+    window.addEventListener("pagehide", () => {
+      if (!navigator.sendBeacon) return;
+      const body = JSON.stringify({
+        sessionId,
+        date: selectedDateKey,
+        visibility: "hidden"
+      });
+      navigator.sendBeacon("/api/session/heartbeat", body);
     });
   </script>
 </body>

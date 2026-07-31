@@ -1,7 +1,8 @@
 import { generateWeeklyComment } from "./llmService.mjs";
 import { notifyDesktop, showChoicePrompt } from "./notificationService.mjs";
 import { appUrl } from "../config.mjs";
-import { formatDate, getAgentState, getDay, isSportTask, patchAgentState, summarizeWeek } from "./scheduleService.mjs";
+import { getAgentState, getDay, patchAgentState, summarizeWeek } from "./scheduleService.mjs";
+import { formatDate, isAtOrAfterHour } from "./timeService.mjs";
 
 const importantTimers = new Map();
 
@@ -27,18 +28,6 @@ export async function runStartupRoutine(date = new Date()) {
   const day = await getDay(dateKey);
   const state = await getAgentState(dateKey);
   const tasks = day.tasks || [];
-  const sportTask = tasks.find(isSportTask);
-
-  if (!state.startupShown) {
-    notifyDesktop(MESSAGES.sportTitle, sportTask ? MESSAGES.sportFound(sportTask.title) : MESSAGES.sportMissing, {
-      clickUrl: buildTaskUrl({ date: dateKey, category: "sport", title: sportTask?.title || "体育运动", time: sportTask?.time || "18:00", note: "体育运动" })
-    });
-    notifyDesktop(MESSAGES.importantTitle, MESSAGES.importantBody, {
-      clickUrl: buildTaskUrl({ date: dateKey, category: "important", title: "重要事项", time: nextQuarterHour(), note: "重要事项" })
-    });
-    notifyDesktop(MESSAGES.githubTitle, MESSAGES.githubBody);
-    await patchAgentState(dateKey, { startupShown: true });
-  }
 
   if (weekday === 6 && !state.creationDayShown) {
     notifyDesktop(MESSAGES.creationTitle, MESSAGES.creationBody);
@@ -87,8 +76,7 @@ export function scheduleImportantReminders(dateKey, tasks) {
 }
 
 export async function notifyDailySummaryReminder(dateKey = formatDate(new Date()), now = new Date()) {
-  const hour = now.getHours();
-  if (hour < 20) return false;
+  if (!isAtOrAfterHour(20, now)) return false;
   const day = await getDay(dateKey);
   const hasOpenTasks = (day.tasks || []).some((task) => !task.done);
   const missingSummary = !(day.memos || []).length;
@@ -109,22 +97,4 @@ function minutesToTime(minutes = 0) {
   const hour = Math.floor(minutes / 60);
   const minute = minutes % 60;
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
-
-function buildTaskUrl(values) {
-  const params = new URLSearchParams({
-    action: "new-task",
-    date: values.date,
-    category: values.category,
-    title: values.title,
-    time: values.time,
-    note: values.note
-  });
-  return `${appUrl}/?${params.toString()}`;
-}
-
-function nextQuarterHour() {
-  const now = new Date();
-  const minutes = now.getHours() * 60 + now.getMinutes();
-  return minutesToTime(Math.min(23 * 60 + 45, Math.ceil(minutes / 15) * 15));
 }
