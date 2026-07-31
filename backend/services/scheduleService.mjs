@@ -1,4 +1,5 @@
 import { db } from "../database/jsonDatabase.mjs";
+import { formatDate } from "./timeService.mjs";
 
 const DEFAULT_TASK_TITLE = "\u672a\u547d\u540d\u65e5\u7a0b";
 const SPORT_TASK_TITLE = "\u4f53\u80b2\u8fd0\u52a8";
@@ -21,6 +22,29 @@ export async function upsertDay(date, payload) {
   });
 
   return day;
+}
+
+export async function importLocalStorageDump(payload) {
+  const imported = [];
+  const days = payload && typeof payload.days === "object" ? payload.days : {};
+
+  await db.update((data) => {
+    for (const [date, day] of Object.entries(days)) {
+      const existing = data.days[date] || { tasks: [], memos: [] };
+      const mergedTasks = mergeById(existing.tasks || [], Array.isArray(day.tasks) ? day.tasks.map(normalizeTask) : []);
+      const mergedMemos = mergeById(existing.memos || [], Array.isArray(day.memos) ? day.memos : []);
+      data.days[date] = {
+        ...existing,
+        tasks: mergedTasks,
+        memos: mergedMemos,
+        updatedAt: new Date().toISOString()
+      };
+      imported.push({ date, tasks: mergedTasks.length, memos: mergedMemos.length });
+    }
+    return imported;
+  });
+
+  return imported;
 }
 
 export async function createTask(date, values) {
@@ -146,10 +170,6 @@ export async function summarizeWeek(today = new Date()) {
   };
 }
 
-export function formatDate(date) {
-  return date.toLocaleDateString("sv-SE");
-}
-
 export function addDays(date, offset) {
   const next = new Date(date);
   next.setDate(next.getDate() + offset);
@@ -174,6 +194,13 @@ function normalizeTask(task) {
     done: Boolean(task.done),
     important: isImportantTask(task)
   };
+}
+
+function mergeById(existing, incoming) {
+  const map = new Map();
+  existing.forEach((item, index) => map.set(item.id || `existing-${index}`, item));
+  incoming.forEach((item, index) => map.set(item.id || `incoming-${Date.now()}-${index}`, item));
+  return [...map.values()];
 }
 
 function createId() {

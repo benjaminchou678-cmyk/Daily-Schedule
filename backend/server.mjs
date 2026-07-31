@@ -5,10 +5,22 @@ import { extname, join, normalize, resolve } from "node:path";
 import { port, publicDir, srcDir } from "./config.mjs";
 import { notifyDesktop } from "./services/notificationService.mjs";
 import { generateWeeklyComment } from "./services/llmService.mjs";
-import { createTask, getDay, recordGithubMaintenance, recordSportStatus, summarizeWeek, upsertDay } from "./services/scheduleService.mjs";
-import { notifyDailySummaryReminder, runStartupRoutine, scheduleImportantReminders } from "./services/reminderScheduler.mjs";
+import { createTask, getDay, importLocalStorageDump, recordGithubMaintenance, recordSportStatus, summarizeWeek, upsertDay } from "./services/scheduleService.mjs";
+import { runStartupRoutine, scheduleImportantReminders } from "./services/reminderScheduler.mjs";
+import { completeDailyReminder, getDailyReminders } from "./services/dailyReminderService.mjs";
+import { maybeNotifyDailySummaryOnClose, recordSessionHeartbeat, startSessionMonitor } from "./services/sessionService.mjs";
+import { writeStartupLog } from "./services/startupLogger.mjs";
 
 const DEFAULT_NOTIFICATION_TITLE = "\u65e5\u7a0b\u63d0\u9192";
+const serverStartedAt = Date.now();
+const startupState = {
+  startedAt: new Date(serverStartedAt).toISOString(),
+  listenMs: null,
+  coreReady: false,
+  startupRoutine: "pending",
+  startupRoutineMs: null,
+  errors: []
+};
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -36,7 +48,10 @@ async function readBody(request) {
 function sendJson(response, status, body) {
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type"
   });
   response.end(JSON.stringify(body));
 }
@@ -51,8 +66,18 @@ async function sendFile(response, filePath) {
 }
 
 async function handleApi(request, response, url) {
+  if (request.method === "OPTIONS") {
+    sendJson(response, 204, {});
+    return true;
+  }
+
   if (request.method === "GET" && url.pathname === "/api/health") {
-    sendJson(response, 200, { ok: true });
+    sendJson(response, 200, { ok: true, status: startupState });
+    return true;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/startup-status") {
+    sendJson(response, 200, { ok: true, status: startupState });
     return true;
   }
 
@@ -75,6 +100,13 @@ async function handleApi(request, response, url) {
     const day = await upsertDay(body.date, body);
     scheduleImportantReminders(body.date, day.tasks);
     sendJson(response, 200, { ok: true, day });
+    return true;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/import/localstorage") {
+    const body = await readBody(request);
+    const imported = await importLocalStorageDump(body);
+    sendJson(response, 200, { ok: true, imported });
     return true;
   }
 
@@ -115,15 +147,39 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/startup-check") {
-    await runStartupRoutine(new Date());
-    sendJson(response, 200, { ok: true });
+    const queued = queueStartupRoutine("api");
+    sendJson(response, queued ? 202 : 200, { ok: true, queued, startupRoutine: startupState.startupRoutine, status: startupState });
+    return true;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/reminders/daily") {
+    const date = url.searchParams.get("date");
+    sendJson(response, 200, await getDailyReminders(date || undefined));
+    return true;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/reminders/daily/complete") {
+    const body = await readBody(request);
+    if (!body.date || !body.key) {
+      sendJson(response, 400, { ok: false, error: "date and key are required" });
+      return true;
+    }
+    const result = await completeDailyReminder(body.date, body.key, body.status);
+    sendJson(response, result.ok ? 200 : 400, result);
+    return true;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/session/heartbeat") {
+    const body = await readBody(request);
+    const result = recordSessionHeartbeat(body);
+    sendJson(response, result.ok ? 200 : 400, result);
     return true;
   }
 
   if (request.method === "POST" && url.pathname === "/api/notifications/daily-summary-reminder") {
     const body = await readBody(request);
-    const notified = await notifyDailySummaryReminder(body.date);
-    sendJson(response, 200, { ok: true, notified });
+    const result = await maybeNotifyDailySummaryOnClose(body.date, body.now ? new Date(body.now) : new Date());
+    sendJson(response, 200, { ok: true, ...result });
     return true;
   }
 
@@ -169,6 +225,31 @@ createServer(async (request, response) => {
     sendJson(response, 500, { error: error instanceof Error ? error.message : "Server error" });
   }
 }).listen(port, () => {
-  console.log(`Daily Schedule backend is running at http://localhost:${port}`);
-  runStartupRoutine(new Date()).catch(() => {});
+  startupState.listenMs = Date.now() - serverStartedAt;
+  startupState.coreReady = true;
+  console.log(`Daily Schedule backend is running at http://localhost:${port} in ${startupState.listenMs}ms`);
+  writeStartupLog("listen", { elapsedMs: Date.now() - serverStartedAt, listenMs: startupState.listenMs });
+  startSessionMonitor();
+  setTimeout(() => queueStartupRoutine("listen"), 0);
 });
+
+function queueStartupRoutine(source) {
+  if (startupState.startupRoutine === "running" || startupState.startupRoutine === "done") return false;
+  startupState.startupRoutine = "running";
+  const startedAt = Date.now();
+  writeStartupLog("startup_routine_start", { elapsedMs: Date.now() - serverStartedAt, source });
+  runStartupRoutine(new Date())
+    .then(() => {
+      startupState.startupRoutine = "done";
+      startupState.startupRoutineMs = Date.now() - startedAt;
+      writeStartupLog("startup_routine_done", { elapsedMs: Date.now() - serverStartedAt, source, durationMs: startupState.startupRoutineMs });
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : "startup routine failed";
+      startupState.startupRoutine = "failed";
+      startupState.startupRoutineMs = Date.now() - startedAt;
+      startupState.errors.push({ module: "startupRoutine", message, time: new Date().toISOString() });
+      writeStartupLog("startup_routine_error", { elapsedMs: Date.now() - serverStartedAt, source, durationMs: startupState.startupRoutineMs, error: message });
+    });
+  return true;
+}

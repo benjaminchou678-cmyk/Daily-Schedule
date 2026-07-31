@@ -1,6 +1,8 @@
 import { generateWeeklyComment } from "./llmService.mjs";
-import { notifyDesktop } from "./notificationService.mjs";
-import { formatDate, getAgentState, getDay, isSportTask, patchAgentState, summarizeWeek } from "./scheduleService.mjs";
+import { notifyDesktop, showChoicePrompt } from "./notificationService.mjs";
+import { appUrl } from "../config.mjs";
+import { getAgentState, getDay, patchAgentState, summarizeWeek } from "./scheduleService.mjs";
+import { formatDate, isAtOrAfterHour } from "./timeService.mjs";
 
 const importantTimers = new Map();
 
@@ -26,14 +28,6 @@ export async function runStartupRoutine(date = new Date()) {
   const day = await getDay(dateKey);
   const state = await getAgentState(dateKey);
   const tasks = day.tasks || [];
-  const sportTask = tasks.find(isSportTask);
-
-  if (!state.startupShown) {
-    notifyDesktop(MESSAGES.sportTitle, sportTask ? MESSAGES.sportFound(sportTask.title) : MESSAGES.sportMissing);
-    notifyDesktop(MESSAGES.importantTitle, MESSAGES.importantBody);
-    notifyDesktop(MESSAGES.githubTitle, MESSAGES.githubBody);
-    await patchAgentState(dateKey, { startupShown: true });
-  }
 
   if (weekday === 6 && !state.creationDayShown) {
     notifyDesktop(MESSAGES.creationTitle, MESSAGES.creationBody);
@@ -72,17 +66,30 @@ export function scheduleImportantReminders(dateKey, tasks) {
     if (delay <= 0) return;
 
     const timer = setTimeout(() => {
-      notifyDesktop(MESSAGES.importantReminderTitle, `${task.title}\n${taskTime} \u5f00\u59cb`);
+      notifyDesktop(MESSAGES.importantReminderTitle, `${task.title}\n${taskTime} \u5f00\u59cb`, {
+        clickUrl: `${appUrl}/?date=${encodeURIComponent(dateKey)}`
+      });
       importantTimers.delete(key);
     }, delay);
     importantTimers.set(key, timer);
   });
 }
 
-export async function notifyDailySummaryReminder(dateKey = formatDate(new Date())) {
+export async function notifyDailySummaryReminder(dateKey = formatDate(new Date()), now = new Date()) {
+  if (!isAtOrAfterHour(20, now)) return false;
   const day = await getDay(dateKey);
-  if ((day.memos || []).length) return false;
-  notifyDesktop(MESSAGES.summaryTitle, MESSAGES.summaryBody);
+  const hasOpenTasks = (day.tasks || []).some((task) => !task.done);
+  const missingSummary = !(day.memos || []).length;
+  if (!hasOpenTasks && !missingSummary) return false;
+  const detail = [
+    hasOpenTasks ? "今天还有未完成事项。" : "",
+    missingSummary ? "今天还没有每日总结。" : "",
+    "请选择填写、稍后提醒或退出。"
+  ].filter(Boolean).join(" ");
+  showChoicePrompt(MESSAGES.summaryTitle, detail || MESSAGES.summaryBody, {
+    fillUrl: `${appUrl}/?date=${encodeURIComponent(dateKey)}&action=memo`,
+    laterMessage: MESSAGES.summaryBody
+  });
   return true;
 }
 

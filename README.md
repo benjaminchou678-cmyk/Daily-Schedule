@@ -1,6 +1,6 @@
 # Personal Schedule System
 
-一个基于本地运行的个人日程管理系统，支持日程规划、时间线管理、历史回看、数据统计以及智能提醒。
+一个本地运行的个人日程计划网页，支持日程新增、编辑、完成、删除、时间线拖拽、月度/年度汇总、历史日期回看、桌面提醒和本地助手服务。项目使用原生 HTML、CSS、JavaScript 编写，主运行方式为本地 Node.js 后端 + JSON 文件数据库；前端仍保留 `localStorage` 离线回退能力。
 
 项目采用 **Local-first（本地优先）设计理念**：核心数据默认保存在用户本机，不依赖云端数据库，保证个人日程数据的隐私、安全与可控。
 
@@ -225,7 +225,15 @@ npm run check
 
 # 💾 数据存储设计
 
-## 前端 LocalStorage
+正常运行 `npm start` 后，日程数据会同步保存在本地 JSON 数据库：
+
+```text
+backend/data/daily-schedule.db.json
+```
+
+该文件包含个人日程、备忘录和习惯状态，已被 `.gitignore` 排除，不会上传到 GitHub。
+
+前端仍保留浏览器 `localStorage` 离线回退，键名格式为：
 
 项目早期版本采用浏览器 `localStorage` 存储数据。
 
@@ -233,9 +241,28 @@ npm run check
 
 ```
 daily-schedule:YYYY-MM-DD
+daily-memos:YYYY-MM-DD
 ```
 
-例如：
+同一个浏览器、同一个访问地址下可以回看历史数据。清理浏览器站点数据会删除离线模式下的本地日程。
+
+如果旧桌面快捷方式曾经打开 `file://.../schedule.html` 或 `file://.../src/index.html`，那一份 `localStorage` 会与 `http://127.0.0.1:5173/` 的数据隔离。可先启动后端：
+
+```powershell
+npm start
+```
+
+再用 Edge 打开项目里的迁移页面：
+
+```text
+src/migrate-localstorage.html
+```
+
+点击“开始迁移”后，旧 `file://` 数据会导入到当前后端数据库。桌面快捷方式建议统一指向：
+
+```text
+http://127.0.0.1:5173/
+```
 
 ```
 daily-schedule:2026-07-28
@@ -393,7 +420,17 @@ reminderScheduler.mjs
 
 原因：
 
-当前需求主要包括：
+- `GET /api/health`
+- `GET /api/startup-status`
+- `POST /api/tasks`
+- `POST /api/habits/sport`
+- `POST /api/habits/github`
+- `POST /api/import/localstorage`
+- `GET /api/reminders/daily`
+- `POST /api/reminders/daily/complete`
+- `POST /api/session/heartbeat`
+- `POST /api/startup-check`
+- `GET /api/weekly-summary`
 
 - 日程管理
 - 条件判断
@@ -481,37 +518,14 @@ npm start
 智能语言能力
 ```
 
-其中：
+Startup behavior:
 
-代码负责：
-
-- 时间判断
-- 数据处理
-- 提醒规则
-- 状态管理
-
-LLM 负责：
-
-- 理解用户需求
-- 总结分析
-- 生成反馈
-
----
-
-# 📌 Future Roadmap
-
-计划支持：
-
-- [ ] 日程自然语言输入
-- [ ] AI 自动拆解任务
-- [ ] 个人时间利用分析
-- [ ] 长期行为趋势预测
-- [ ] 多设备同步
-- [ ] 本地向量数据库记忆系统
-- [ ] 更智能的个人 Agent 能力
-
----
-
-# License
-
-Personal Project
+- `scripts/start-daily-schedule-agent.ps1` starts or reuses the backend reminder service immediately.
+- `scripts/open-daily-schedule-site.ps1` opens the original site address when ready, or opens the lightweight bootstrap page without waiting.
+- The original address remains `http://127.0.0.1:5173`.
+- Startup timing is written to `backend/logs/startup.log`.
+- The backend calls `listen()` first, then runs startup reminders in the background.
+- Daily in-page reminders for sport, important schedules, and GitHub maintenance run through a frontend Promise queue, so only one reminder appears at a time.
+- The browser sends a heartbeat every 5 seconds; the backend session monitor handles close detection and the after-20:00 daily summary prompt.
+- Reminder balloons can be clicked to open the existing schedule page and pre-fill the original add-task modal.
+- Closing the site only triggers the summary prompt after 20:00, and only when the backend finds open tasks or no daily memo.
