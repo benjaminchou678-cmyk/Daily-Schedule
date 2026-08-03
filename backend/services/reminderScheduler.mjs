@@ -1,8 +1,8 @@
 import { generateWeeklyComment } from "./llmService.mjs";
-import { notifyDesktop, showChoicePrompt } from "./notificationService.mjs";
+import { notifyDesktop } from "./notificationService.mjs";
 import { appUrl } from "../config.mjs";
 import { getAgentState, getDay, patchAgentState, summarizeWeek } from "./scheduleService.mjs";
-import { formatDate, isAtOrAfterHour } from "./timeService.mjs";
+import { formatDate } from "./timeService.mjs";
 
 const importantTimers = new Map();
 
@@ -18,8 +18,7 @@ const MESSAGES = {
   creationBody: "\u6b22\u8fce\u6765\u5230\u6bcf\u5468\u7684\u521b\u4f5c\u65e5\u65f6\u95f4\uff0c\u5e0c\u671b\u4f60\u5728\u4eca\u5929\u53ef\u4ee5\u4fdd\u6301\u70ed\u60c5\u7684\u521b\u4f5c\u6b32\u671b\u3001\u7406\u6027\u7684\u521b\u4f5c\u6001\u5ea6\uff0c\u575a\u6301\u4e0d\u61c8\u5730\u60f3\u7740\u76ee\u6807\u63a8\u8fdb\u3002",
   weeklyTitle: "\u5468\u5ea6\u8ba1\u5212\u5b8c\u6210\u60c5\u51b5",
   importantReminderTitle: "\u91cd\u8981\u65e5\u7a0b\u63d0\u9192",
-  summaryTitle: "\u6bcf\u65e5\u603b\u7ed3\u63d0\u9192",
-  summaryBody: "\u4e0d\u8981\u5fd8\u8bb0\u8bb0\u5f55\u6bcf\u65e5\u603b\u7ed3\u3002"
+  summaryTitle: "\u6bcf\u65e5\u603b\u7ed3\u63d0\u9192"
 };
 
 export async function runStartupRoutine(date = new Date()) {
@@ -73,24 +72,6 @@ export function scheduleImportantReminders(dateKey, tasks) {
     }, delay);
     importantTimers.set(key, timer);
   });
-}
-
-export async function notifyDailySummaryReminder(dateKey = formatDate(new Date()), now = new Date()) {
-  if (!isAtOrAfterHour(20, now)) return false;
-  const day = await getDay(dateKey);
-  const hasOpenTasks = (day.tasks || []).some((task) => !task.done);
-  const missingSummary = !(day.memos || []).length;
-  if (!hasOpenTasks && !missingSummary) return false;
-  const detail = [
-    hasOpenTasks ? "今天还有未完成事项。" : "",
-    missingSummary ? "今天还没有每日总结。" : "",
-    "请选择填写、稍后提醒或退出。"
-  ].filter(Boolean).join(" ");
-  showChoicePrompt(MESSAGES.summaryTitle, detail || MESSAGES.summaryBody, {
-    fillUrl: `${appUrl}/?date=${encodeURIComponent(dateKey)}&action=memo`,
-    laterMessage: MESSAGES.summaryBody
-  });
-  return true;
 }
 
 function minutesToTime(minutes = 0) {

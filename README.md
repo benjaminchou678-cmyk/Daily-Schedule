@@ -526,6 +526,6 @@ Startup behavior:
 - Startup timing is written to `backend/logs/startup.log`.
 - The backend calls `listen()` first, then runs startup reminders in the background.
 - Daily in-page reminders for sport, important schedules, and GitHub maintenance run through a frontend Promise queue, so only one reminder appears at a time.
-- The browser sends a heartbeat every 5 seconds; the backend session monitor handles close detection and the after-20:00 daily summary prompt.
+- The browser sends a heartbeat every 5 seconds; the backend session monitor handles close detection after the page reports a close intent.
 - Reminder balloons can be clicked to open the existing schedule page and pre-fill the original add-task modal.
-- Closing the site only triggers the summary prompt after 20:00, and only when the backend finds open tasks or no daily memo.
+- Actively closing the site asks whether today's work is finished. Choosing yes reminds the user to finish the daily summary.

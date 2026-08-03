@@ -5,7 +5,7 @@ const DAILY_REMINDERS = [
   {
     key: "sportHabit",
     type: "sport-habit",
-    text: "今天的体育运动完成了吗？"
+    text: "是否需要将今天的运动计划记录到日程？"
   },
   {
     key: "importantSchedule",

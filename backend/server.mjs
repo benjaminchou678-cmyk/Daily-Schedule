@@ -8,7 +8,7 @@ import { generateWeeklyComment } from "./services/llmService.mjs";
 import { createTask, getDay, importLocalStorageDump, recordGithubMaintenance, recordSportStatus, summarizeWeek, upsertDay } from "./services/scheduleService.mjs";
 import { runStartupRoutine, scheduleImportantReminders } from "./services/reminderScheduler.mjs";
 import { completeDailyReminder, getDailyReminders } from "./services/dailyReminderService.mjs";
-import { maybeNotifyDailySummaryOnClose, recordSessionHeartbeat, startSessionMonitor } from "./services/sessionService.mjs";
+import { maybePromptEndWorkOnClose, recordClosingIntent, recordSessionHeartbeat, startSessionMonitor } from "./services/sessionService.mjs";
 import { writeStartupLog } from "./services/startupLogger.mjs";
 
 const DEFAULT_NOTIFICATION_TITLE = "\u65e5\u7a0b\u63d0\u9192";
@@ -176,9 +176,16 @@ async function handleApi(request, response, url) {
     return true;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/session/closing-intent") {
+    const body = await readBody(request);
+    const result = recordClosingIntent(body);
+    sendJson(response, result.ok ? 200 : 400, result);
+    return true;
+  }
+
   if (request.method === "POST" && url.pathname === "/api/notifications/daily-summary-reminder") {
     const body = await readBody(request);
-    const result = await maybeNotifyDailySummaryOnClose(body.date, body.now ? new Date(body.now) : new Date());
+    const result = await maybePromptEndWorkOnClose(body.date, body.now ? new Date(body.now) : new Date());
     sendJson(response, 200, { ok: true, ...result });
     return true;
   }

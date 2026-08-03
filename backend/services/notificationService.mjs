@@ -132,3 +132,87 @@ $form.Controls.Add($exit)
 
   child.unref();
 }
+
+export function showYesNoPrompt(title, message, options = {}) {
+  if (process.env.DISABLE_DESKTOP_NOTIFICATIONS === "1") {
+    console.log(`[prompt] ${title}: ${message}`);
+    if (options.yesMessage) console.log(`[notification] ${title}: ${options.yesMessage}`);
+    return;
+  }
+
+  const safeTitle = escapePowerShell(title);
+  const safeMessage = escapePowerShell(message);
+  const safeYesMessage = options.yesMessage ? escapePowerShell(options.yesMessage) : "";
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+$form = New-Object System.Windows.Forms.Form
+$form.Text = '${safeTitle}'
+$form.Width = 390
+$form.Height = 190
+$form.FormBorderStyle = 'FixedSingle'
+$form.MaximizeBox = $false
+$form.MinimizeBox = $false
+$form.TopMost = $true
+$form.StartPosition = 'Manual'
+$screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+$form.Left = $screen.Right - $form.Width - 18
+$form.Top = $screen.Bottom - $form.Height - 18
+
+$label = New-Object System.Windows.Forms.Label
+$label.Text = '${safeMessage}'
+$label.Left = 18
+$label.Top = 24
+$label.Width = 340
+$label.Height = 64
+$label.Font = New-Object System.Drawing.Font('Microsoft YaHei UI', 10)
+$form.Controls.Add($label)
+
+$yes = New-Object System.Windows.Forms.Button
+$yes.Text = '是'
+$yes.Left = 82
+$yes.Top = 108
+$yes.Width = 92
+$yes.Height = 30
+$yes.BackColor = [System.Drawing.Color]::FromArgb(159, 215, 255)
+$yes.Add_Click({
+  if ('${safeYesMessage}') {
+    $notify = New-Object System.Windows.Forms.NotifyIcon
+    $notify.Icon = [System.Drawing.SystemIcons]::Information
+    $notify.BalloonTipTitle = '${safeTitle}'
+    $notify.BalloonTipText = '${safeYesMessage}'
+    $notify.Visible = $true
+    $notify.ShowBalloonTip(7000)
+    Start-Sleep -Seconds 8
+    $notify.Dispose()
+  }
+  $form.Close()
+})
+$form.Controls.Add($yes)
+
+$no = New-Object System.Windows.Forms.Button
+$no.Text = '否'
+$no.Left = 214
+$no.Top = 108
+$no.Width = 92
+$no.Height = 30
+$no.BackColor = [System.Drawing.Color]::FromArgb(255, 193, 216)
+$no.Add_Click({ $form.Close() })
+$form.Controls.Add($no)
+
+[void]$form.ShowDialog()
+`;
+
+  const child = spawn("powershell.exe", [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    script
+  ], {
+    windowsHide: true,
+    stdio: "ignore"
+  });
+
+  child.unref();
+}
